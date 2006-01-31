@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 44;
+use Test::More tests => 48;
 
 use Test::TempDatabase;
 use Class::DBI;
@@ -44,7 +44,7 @@ __PACKAGE__->make_tested_value('text1');
 __PACKAGE__->make_tested_value('text2');
 
 __PACKAGE__->bind_to_class_dbi(CDBI => 
-		i1 => id1 => t1 => text1 => t2 => 'text2');
+		id1 => i1 => text1 => t1 => text2 => 't2');
 
 package main;
 
@@ -109,7 +109,7 @@ use base 'HTML::Tested::ClassDBI';
 
 __PACKAGE__->make_tested_value('id');
 __PACKAGE__->make_tested_value('txt');
-__PACKAGE__->bind_to_class_dbi(CDBI2 => Primary => id => txt => 'txt');
+__PACKAGE__->bind_to_class_dbi(CDBI2 => id => Primary => txt => 'txt');
 
 package main;
 
@@ -155,7 +155,7 @@ __PACKAGE__->make_tested_value('text1');
 __PACKAGE__->make_tested_value('text2');
 
 __PACKAGE__->bind_to_class_dbi(CDBI => 
-		Primary => id1 => t1 => text1 => t2 => 'text2');
+		id1 => Primary => text1 => t1 => text2 => 't2');
 
 package main;
 $object = HTC1->new();
@@ -181,3 +181,18 @@ $object = HTC1->new();
 $object->id1(3);
 $object->cdbi_delete;
 is(CDBI->retrieve(3), undef);
+is($object->can('ht_id'), undef);
+
+package HTC2;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->make_tested_value('text1');
+__PACKAGE__->make_tested_value('text2');
+
+__PACKAGE__->bind_to_class_dbi(CDBI => text1 => t1 => text2 => 't2');
+
+package main;
+$object = HTC2->new();
+is($object->PrimaryField, 'ht_id');
+$object->ht_id(1);
+ok($object->cdbi_load);
+is($object->text1, 'a');

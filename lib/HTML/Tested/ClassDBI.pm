@@ -9,7 +9,7 @@ HTML::Tested::ClassDBI - Enhances HTML::Tested to work with Class::DBI
 
 	__PACKAGE__->make_tested_value('x');
 	__PACKAGE__->bind_to_class_dbi(MyClassDBI => 
-			col1 => 'x');
+			x => 'col1');
 
 =head1 DESCRIPTION
 
@@ -24,14 +24,32 @@ package HTML::Tested::ClassDBI;
 use base 'HTML::Tested';
 __PACKAGE__->mk_accessors(qw(class_dbi_object));
 __PACKAGE__->mk_classdata('CDBI_Class');
-__PACKAGE__->mk_classdata('Columns_To_Fields_Map');
+__PACKAGE__->mk_classdata('Fields_To_Columns_Map');
+__PACKAGE__->mk_classdata('PrimaryField');
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub bind_to_class_dbi {
-	my ($class, $dbi_class, %cols_to_fields_map) = @_;
+	my ($class, $dbi_class, %fields_to_cols_map) = @_;
+	$class->PrimaryField(undef);
 	$class->CDBI_Class($dbi_class);
-	$class->Columns_To_Fields_Map(\%cols_to_fields_map);
+	$class->Fields_To_Columns_Map(\%fields_to_cols_map);
+	while (my ($n, $v) = each %fields_to_cols_map) {
+		next unless $v eq 'Primary';
+		$class->PrimaryField($n);
+		last;
+	}
+	return if $class->PrimaryField;
+	my @pc = $dbi_class->primary_columns;
+	die "Multiple PKs is given, but no Primary set" if (@pc > 1);
+	while (my ($n, $v) = each %fields_to_cols_map) {
+		next unless $v eq $pc[0];
+		$class->PrimaryField($n);
+		last;
+	}
+	return if $class->PrimaryField;
+	$class->PrimaryField('ht_id');
+	$class->make_tested_value('ht_id');
 }
 
 sub _get_cdbi_pk_for_retrieve {
@@ -39,10 +57,7 @@ sub _get_cdbi_pk_for_retrieve {
 	$res ||= {};
 
 	my @pc = $self->CDBI_Class->primary_columns;
-	my $ctf = $self->Columns_To_Fields_Map;
-	die "Multiple PKs is given, but no Primary set"
-		if (@pc > 1 && !$ctf->{Primary});
-	my $f = $ctf->{$pc[0]} || $ctf->{Primary};
+	my $f = $self->PrimaryField;
 	return undef unless $self->$f;
 	my @vals = split('_', $self->$f);
 	for (my $i = 0; $i < @pc; $i++) {
@@ -61,11 +76,11 @@ sub _make_cdbi_pk_value {
 sub _fill_in_from_class_dbi {
 	my $self = shift;
 	my $cdbi = $self->class_dbi_object;
-	for my $col ($cdbi->columns) {
-		my $f = $self->Columns_To_Fields_Map->{$col};
-		$self->$f($cdbi->$col) if $f;
+	while (my ($f, $col) = each %{ $self->Fields_To_Columns_Map }) {
+		next if $col eq 'Primary';
+		$self->$f($cdbi->$col);
 	}
-	my $pc_field = $self->Columns_To_Fields_Map->{Primary} or return;
+	my $pc_field = $self->PrimaryField;
 	my @pvals = map { $cdbi->$_ } $cdbi->primary_columns;
 	$self->$pc_field($self->_make_cdbi_pk_value);
 }
@@ -99,7 +114,7 @@ sub query_class_dbi {
 sub cdbi_create {
 	my $self = shift;
 	my %args;
-	while (my ($col, $field) = each %{ $self->Columns_To_Fields_Map }) {
+	while (my ($field, $col) = each %{ $self->Fields_To_Columns_Map }) {
 		if ($col eq 'Primary') {
 			$self->_get_cdbi_pk_for_retrieve(\%args);
 		} else {
@@ -116,7 +131,7 @@ sub cdbi_update {
 	my %args;
 	my $obj = $self->class_dbi_object;
 	my %pc = map { ($_, 1) } $obj->primary_columns;
-	while (my ($col, $field) = each %{ $self->Columns_To_Fields_Map }) {
+	while (my ($field, $col) = each %{ $self->Fields_To_Columns_Map }) {
 		if ($col eq 'Primary') {
 			$self->$field($self->_make_cdbi_pk_value);
 		} elsif ($pc{$col}) {
