@@ -27,7 +27,7 @@ __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('Fields_To_Columns_Map');
 __PACKAGE__->mk_classdata('PrimaryField');
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub bind_to_class_dbi {
 	my ($class, $dbi_class, %fields_to_cols_map) = @_;
@@ -41,13 +41,15 @@ sub bind_to_class_dbi {
 	}
 	return if $class->PrimaryField;
 	my @pc = $dbi_class->primary_columns;
-	die "Multiple PKs is given, but no Primary set" if (@pc > 1);
+	goto SET_PRIMARY_FIELD if @pc > 1;
 	while (my ($n, $v) = each %fields_to_cols_map) {
 		next unless $v eq $pc[0];
 		$class->PrimaryField($n);
 		last;
-	}
+	};
 	return if $class->PrimaryField;
+
+SET_PRIMARY_FIELD:
 	$class->PrimaryField('ht_id');
 	$class->make_tested_value('ht_id');
 }
@@ -78,7 +80,8 @@ sub _fill_in_from_class_dbi {
 	my $cdbi = $self->class_dbi_object;
 	while (my ($f, $col) = each %{ $self->Fields_To_Columns_Map }) {
 		next if $col eq 'Primary';
-		$self->$f($cdbi->$col);
+		my $val = ref($col) ? [ map { $cdbi->$_ } @$col ] : $cdbi->$col;
+		$self->$f($val);
 	}
 	my $pc_field = $self->PrimaryField;
 	my @pvals = map { $cdbi->$_ } $cdbi->primary_columns;
@@ -136,7 +139,7 @@ sub cdbi_update {
 			$self->$field($self->_make_cdbi_pk_value);
 		} elsif ($pc{$col}) {
 			$self->$field($obj->$col);
-		} else {
+		} elsif (!ref($col)) {
 			$obj->$col($self->$field);
 		}
 	}
@@ -150,10 +153,12 @@ sub cdbi_create_or_update {
 		? $self->cdbi_update : $self->cdbi_create;
 }
 
-sub cdbi_delete {
+sub cdbi_construct {
 	my $self = shift;
-	$self->CDBI_Class->construct($self->_get_cdbi_pk_for_retrieve)->delete;
+	return $self->CDBI_Class->construct($self->_get_cdbi_pk_for_retrieve);
 }
+
+sub cdbi_delete { shift()->cdbi_construct->delete; }
 
 1;
 

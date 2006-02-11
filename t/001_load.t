@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 48;
+use Test::More tests => 55;
 
 use Test::TempDatabase;
 use Class::DBI;
@@ -148,6 +148,13 @@ $htc2_arr = HTC2->query_class_dbi('retrieve_all');
 is(@$htc2_arr, 1);
 is($htc2_arr->[0]->id, '12_14');
 
+$htc2 = HTC2->new;
+$htc2->id('19_20');
+my $o = $htc2->cdbi_construct;
+isa_ok($o, 'CDBI2');
+is($o->id1, 19);
+is($o->id2, 20);
+
 package HTC1;
 use base 'HTML::Tested::ClassDBI';
 __PACKAGE__->make_tested_value('id1');
@@ -183,7 +190,7 @@ $object->cdbi_delete;
 is(CDBI->retrieve(3), undef);
 is($object->can('ht_id'), undef);
 
-package HTC2;
+package HTC3;
 use base 'HTML::Tested::ClassDBI';
 __PACKAGE__->make_tested_value('text1');
 __PACKAGE__->make_tested_value('text2');
@@ -191,8 +198,37 @@ __PACKAGE__->make_tested_value('text2');
 __PACKAGE__->bind_to_class_dbi(CDBI => text1 => t1 => text2 => 't2');
 
 package main;
-$object = HTC2->new();
+$object = HTC3->new();
 is($object->PrimaryField, 'ht_id');
 $object->ht_id(1);
 ok($object->cdbi_load);
 is($object->text1, 'a');
+
+package HTC4;
+use base 'HTML::Tested::ClassDBI';
+
+__PACKAGE__->make_tested_value('txt');
+__PACKAGE__->bind_to_class_dbi(CDBI2 => txt => 'txt');
+
+package main;
+
+$object = HTC4->new();
+is($object->PrimaryField, 'ht_id');
+
+package HTC5;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->make_tested_link('lnk');
+
+__PACKAGE__->bind_to_class_dbi(CDBI => lnk => [ 't1','t2' ]);
+
+package main;
+
+my $c5 = CDBI->create({ t1 => 'a', t2 => 'b' });
+$object = HTC5->new();
+
+$object->ht_id($c5->id);
+ok($object->cdbi_load);
+is_deeply($object->lnk, [ 'a', 'b' ]);
+
+ok($object->cdbi_create_or_update);
+
