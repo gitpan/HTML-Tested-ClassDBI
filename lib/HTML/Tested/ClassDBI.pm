@@ -27,7 +27,16 @@ __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('Fields_To_Columns_Map');
 __PACKAGE__->mk_classdata('PrimaryField');
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
+
+sub cdbi_bind_from_fields {
+	my $class = shift;
+	while (my ($n, $v) = each %{ $class->Widgets_Map }) {
+		next unless exists $v->args->{cdbi_bind};
+		$class->Fields_To_Columns_Map->{$n} =
+			($v->args->{cdbi_bind} || $n);
+	}
+}
 
 sub bind_to_class_dbi {
 	my ($class, $dbi_class, %fields_to_cols_map) = @_;
@@ -51,6 +60,7 @@ sub bind_to_class_dbi {
 
 SET_PRIMARY_FIELD:
 	$class->PrimaryField('ht_id');
+	$class->cdbi_bind_from_fields;
 	$class->make_tested_value('ht_id');
 }
 
@@ -159,6 +169,21 @@ sub cdbi_construct {
 }
 
 sub cdbi_delete { shift()->cdbi_construct->delete; }
+
+sub load_db_constraints {
+	my $class = shift;
+	my $arr = $class->CDBI_Class->db_Main->selectall_arrayref(<<ENDS
+SELECT column_name FROM information_schema.columns WHERE
+	table_name = ? and is_nullable = 'NO'
+ENDS
+	, undef, $class->CDBI_Class->table);
+	my %not_nullable = map { ($_->[0], 1) } @$arr;
+	while (my ($n, $v) = each %{ $class->Fields_To_Columns_Map }) {
+		next unless $not_nullable{$v};
+		HTML::Tested::Value::Form::Push_Constraints(
+				$class->Widgets_Map->{$n}, '/.+/');
+	}
+}
 
 1;
 

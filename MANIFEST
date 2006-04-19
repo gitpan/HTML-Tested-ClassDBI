@@ -6,4 +6,5 @@ Changes
 Makefile.PL
 lib/HTML/Tested/ClassDBI.pm
 t/001_load.t
+t/100_constraints.t
 META.yml                                 Module meta-data (added by MakeMaker)

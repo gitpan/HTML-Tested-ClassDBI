@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 55;
+use Test::More tests => 61;
 
 use Test::TempDatabase;
 use Class::DBI;
@@ -231,4 +231,27 @@ ok($object->cdbi_load);
 is_deeply($object->lnk, [ 'a', 'b' ]);
 
 ok($object->cdbi_create_or_update);
+
+package HTC6;
+use base 'HTML::Tested::ClassDBI';
+
+__PACKAGE__->make_tested_value('t1', cdbi_bind => '');
+__PACKAGE__->make_tested_edit_box('text2', cdbi_bind => 't2');
+__PACKAGE__->make_tested_link('t2l', cdbi_bind => [ 't1', 't2' ]);
+__PACKAGE__->make_tested_value('t2');
+__PACKAGE__->bind_to_class_dbi('CDBI');
+
+package main;
+
+$c1->t2('b');
+$c1->update;
+
+$object = HTC6->new();
+is($object->PrimaryField, 'ht_id');
+$object->ht_id(1);
+ok($object->cdbi_load);
+is($object->t1, 'a');
+is($object->text2, 'b');
+is_deeply($object->t2l, [ 'a', 'b' ]);
+is($object->t2, undef);
 
