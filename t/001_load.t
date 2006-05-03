@@ -1,10 +1,11 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 61;
+use Test::More tests => 63;
 
 use Test::TempDatabase;
 use Class::DBI;
 use Carp;
+use Data::Dumper;
 
 BEGIN { $SIG{__DIE__} = sub { diag(Carp::longmess(@_)); };
 	use_ok( 'HTML::Tested::ClassDBI' ); 
@@ -235,9 +236,11 @@ ok($object->cdbi_create_or_update);
 package HTC6;
 use base 'HTML::Tested::ClassDBI';
 
+__PACKAGE__->make_tested_hidden('ht_id', cdbi_bind => 'Primary');
 __PACKAGE__->make_tested_value('t1', cdbi_bind => '');
 __PACKAGE__->make_tested_edit_box('text2', cdbi_bind => 't2');
 __PACKAGE__->make_tested_link('t2l', cdbi_bind => [ 't1', 't2' ]);
+__PACKAGE__->make_tested_link('idl', cdbi_bind => [ 't1', 'Primary' ]);
 __PACKAGE__->make_tested_value('t2');
 __PACKAGE__->bind_to_class_dbi('CDBI');
 
@@ -253,5 +256,12 @@ ok($object->cdbi_load);
 is($object->t1, 'a');
 is($object->text2, 'b');
 is_deeply($object->t2l, [ 'a', 'b' ]);
+is_deeply($object->idl, [ 'a', 1 ]);
 is($object->t2, undef);
+
+my $stash = {};
+$object->ht_render($stash);
+is_deeply($stash->{ht_id}, <<ENDS) or diag(Dumper($stash));
+<input type="hidden" name="ht_id" id="ht_id" value="1" />
+ENDS
 

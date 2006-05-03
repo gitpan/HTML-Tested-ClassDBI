@@ -27,14 +27,15 @@ __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('Fields_To_Columns_Map');
 __PACKAGE__->mk_classdata('PrimaryField');
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
 	while (my ($n, $v) = each %{ $class->Widgets_Map }) {
 		next unless exists $v->args->{cdbi_bind};
-		$class->Fields_To_Columns_Map->{$n} =
-			($v->args->{cdbi_bind} || $n);
+		my $b = $v->args->{cdbi_bind};
+		$class->PrimaryField($n) if ($b && $b eq 'Primary');
+		$class->Fields_To_Columns_Map->{$n} = ($b || $n);
 	}
 }
 
@@ -43,6 +44,8 @@ sub bind_to_class_dbi {
 	$class->PrimaryField(undef);
 	$class->CDBI_Class($dbi_class);
 	$class->Fields_To_Columns_Map(\%fields_to_cols_map);
+	$class->cdbi_bind_from_fields;
+	return if $class->PrimaryField;
 	while (my ($n, $v) = each %fields_to_cols_map) {
 		next unless $v eq 'Primary';
 		$class->PrimaryField($n);
@@ -60,7 +63,6 @@ sub bind_to_class_dbi {
 
 SET_PRIMARY_FIELD:
 	$class->PrimaryField('ht_id');
-	$class->cdbi_bind_from_fields;
 	$class->make_tested_value('ht_id');
 }
 
@@ -88,14 +90,16 @@ sub _make_cdbi_pk_value {
 sub _fill_in_from_class_dbi {
 	my $self = shift;
 	my $cdbi = $self->class_dbi_object;
+	my $pc_field = $self->PrimaryField;
+	my $pkey_val = $self->_make_cdbi_pk_value;
+	$self->$pc_field($pkey_val);
 	while (my ($f, $col) = each %{ $self->Fields_To_Columns_Map }) {
 		next if $col eq 'Primary';
-		my $val = ref($col) ? [ map { $cdbi->$_ } @$col ] : $cdbi->$col;
+		my $val = ref($col) ? [ map {
+			$_ eq 'Primary' ? $pkey_val : $cdbi->$_
+		} @$col ] : $cdbi->$col;
 		$self->$f($val);
 	}
-	my $pc_field = $self->PrimaryField;
-	my @pvals = map { $cdbi->$_ } $cdbi->primary_columns;
-	$self->$pc_field($self->_make_cdbi_pk_value);
 }
 
 sub _retrieve_cdbi_object {
