@@ -43,6 +43,7 @@ use base 'HTML::Tested::ClassDBI';
 __PACKAGE__->make_tested_form('v', children => [
 		t1 => 'value', { cdbi_bind => '' },
 		t2 => 'value', { cdbi_bind => '' }, ]);
+__PACKAGE__->make_tested_value('ht_id', cdbi_bind => 'Primary');
 __PACKAGE__->bind_to_class_dbi('CDBI');
 __PACKAGE__->load_db_constraints;
 

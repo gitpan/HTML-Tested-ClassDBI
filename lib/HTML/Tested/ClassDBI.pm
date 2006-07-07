@@ -22,48 +22,36 @@ use warnings FATAL => 'all';
 
 package HTML::Tested::ClassDBI;
 use base 'HTML::Tested';
+use Carp;
 __PACKAGE__->mk_accessors(qw(class_dbi_object));
 __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('Fields_To_Columns_Map');
-__PACKAGE__->mk_classdata('PrimaryField');
+__PACKAGE__->mk_classdata('PrimaryFields');
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
+	my $ftc = $class->Fields_To_Columns_Map; 
 	while (my ($n, $v) = each %{ $class->Widgets_Map }) {
-		next unless exists $v->args->{cdbi_bind};
-		my $b = $v->args->{cdbi_bind};
-		$class->PrimaryField($n) if ($b && $b eq 'Primary');
-		$class->Fields_To_Columns_Map->{$n} = ($b || $n);
+		next unless exists $v->options->{cdbi_bind};
+		$ftc->{$n} = ($v->options->{cdbi_bind} || $n);
 	}
 }
 
 sub bind_to_class_dbi {
-	my ($class, $dbi_class, %fields_to_cols_map) = @_;
-	$class->PrimaryField(undef);
+	my ($class, $dbi_class) = @_;
 	$class->CDBI_Class($dbi_class);
-	$class->Fields_To_Columns_Map(\%fields_to_cols_map);
+	$class->Fields_To_Columns_Map({});
+	$class->PrimaryFields([]);
 	$class->cdbi_bind_from_fields;
-	return if $class->PrimaryField;
-	while (my ($n, $v) = each %fields_to_cols_map) {
-		next unless $v eq 'Primary';
-		$class->PrimaryField($n);
-		last;
+	my %ftc = %{ $class->Fields_To_Columns_Map };
+	while (my ($n, $v) = each %ftc) {
+		next unless ($v eq 'Primary'
+			|| (ref($v) && grep { $_ eq 'Primary' } @$v));
+		push @{ $class->PrimaryFields }, $n;
+		$class->ht_set_widget_option($n, "is_sealed", 1);
 	}
-	return if $class->PrimaryField;
-	my @pc = $dbi_class->primary_columns;
-	goto SET_PRIMARY_FIELD if @pc > 1;
-	while (my ($n, $v) = each %fields_to_cols_map) {
-		next unless $v eq $pc[0];
-		$class->PrimaryField($n);
-		last;
-	};
-	return if $class->PrimaryField;
-
-SET_PRIMARY_FIELD:
-	$class->PrimaryField('ht_id');
-	$class->make_tested_value('ht_id');
 }
 
 sub _get_cdbi_pk_for_retrieve {
@@ -71,9 +59,10 @@ sub _get_cdbi_pk_for_retrieve {
 	$res ||= {};
 
 	my @pc = $self->CDBI_Class->primary_columns;
-	my $f = $self->PrimaryField;
-	return undef unless $self->$f;
-	my @vals = split('_', $self->$f);
+	my ($pv) = grep { defined($_) } map { $self->$_ }
+			@{ $self->PrimaryFields };
+	return undef unless defined($pv);
+	my @vals = split('_', $pv);
 	for (my $i = 0; $i < @pc; $i++) {
 		$res->{$pc[$i]} = $vals[$i];
 	}
@@ -87,18 +76,23 @@ sub _make_cdbi_pk_value {
 	return join('_', @pvals);
 }
 
+sub _get_column_value {
+	my ($self, $col) = @_;
+	my $val;
+	if (ref($col) eq 'ARRAY') {
+		$val = [ map { $self->_get_column_value($_) } @$col ];
+	} elsif ($col eq 'Primary') {
+		$val = $self->_make_cdbi_pk_value;
+	} else {
+		return $self->class_dbi_object->$col;
+	}
+}
+
 sub _fill_in_from_class_dbi {
 	my $self = shift;
-	my $cdbi = $self->class_dbi_object;
-	my $pc_field = $self->PrimaryField;
-	my $pkey_val = $self->_make_cdbi_pk_value;
-	$self->$pc_field($pkey_val);
-	while (my ($f, $col) = each %{ $self->Fields_To_Columns_Map }) {
-		next if $col eq 'Primary';
-		my $val = ref($col) ? [ map {
-			$_ eq 'Primary' ? $pkey_val : $cdbi->$_
-		} @$col ] : $cdbi->$col;
-		$self->$f($val);
+	my $ftcm = $self->Fields_To_Columns_Map;
+	while (my ($f, $col) = each %$ftcm) {
+		$self->$f($self->_get_column_value($col));
 	}
 }
 
@@ -169,7 +163,8 @@ sub cdbi_create_or_update {
 
 sub cdbi_construct {
 	my $self = shift;
-	return $self->CDBI_Class->construct($self->_get_cdbi_pk_for_retrieve);
+	return $self->CDBI_Class->construct(
+			$self->_get_cdbi_pk_for_retrieve);
 }
 
 sub cdbi_delete { shift()->cdbi_construct->delete; }

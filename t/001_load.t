@@ -1,18 +1,22 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 63;
+use Test::More tests => 79;
 
 use Test::TempDatabase;
 use Class::DBI;
 use Carp;
 use Data::Dumper;
+use HTML::Tested::Seal;
+use HTML::Tested::Test;
 
 BEGIN { $SIG{__DIE__} = sub { diag(Carp::longmess(@_)); };
-	use_ok( 'HTML::Tested::ClassDBI' ); 
+	use_ok('HTML::Tested::ClassDBI'); 
 }
 
+HTML::Tested::Seal->instance('boo boo boo');
+
 my $tdb = Test::TempDatabase->create(dbname => 'ht_class_dbi_test',
-			dbi_args => { RootClass => 'DBIx::ContextualFetch' });
+		dbi_args => { RootClass => 'DBIx::ContextualFetch' });
 my $dbh = $tdb->handle;
 $dbh->do('SET client_min_messages TO error');
 
@@ -40,12 +44,11 @@ is($c1->i1, 1);
 
 package HTC;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_value('id1');
-__PACKAGE__->make_tested_value('text1');
-__PACKAGE__->make_tested_value('text2');
+__PACKAGE__->make_tested_value('id1', cdbi_bind => 'Primary');
+__PACKAGE__->make_tested_value('text1', cdbi_bind => 't1');
+__PACKAGE__->make_tested_value('text2', cdbi_bind => 't2');
 
-__PACKAGE__->bind_to_class_dbi(CDBI => 
-		id1 => i1 => text1 => t1 => text2 => 't2');
+__PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
 
@@ -108,9 +111,9 @@ ok($c21);
 package HTC2;
 use base 'HTML::Tested::ClassDBI';
 
-__PACKAGE__->make_tested_value('id');
-__PACKAGE__->make_tested_value('txt');
-__PACKAGE__->bind_to_class_dbi(CDBI2 => id => Primary => txt => 'txt');
+__PACKAGE__->make_tested_value('id', cdbi_bind => 'Primary');
+__PACKAGE__->make_tested_value('txt', cdbi_bind => '');
+__PACKAGE__->bind_to_class_dbi('CDBI2');
 
 package main;
 
@@ -158,12 +161,10 @@ is($o->id2, 20);
 
 package HTC1;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_value('id1');
-__PACKAGE__->make_tested_value('text1');
-__PACKAGE__->make_tested_value('text2');
-
-__PACKAGE__->bind_to_class_dbi(CDBI => 
-		id1 => Primary => text1 => t1 => text2 => 't2');
+__PACKAGE__->make_tested_value('id1', cdbi_bind => 'Primary');
+__PACKAGE__->make_tested_value('text1', cdbi_bind => 't1');
+__PACKAGE__->make_tested_value('text2', cdbi_bind => 't2');
+__PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
 $object = HTC1->new();
@@ -193,34 +194,34 @@ is($object->can('ht_id'), undef);
 
 package HTC3;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_value('text1');
-__PACKAGE__->make_tested_value('text2');
-
-__PACKAGE__->bind_to_class_dbi(CDBI => text1 => t1 => text2 => 't2');
+__PACKAGE__->make_tested_value('ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->make_tested_value('text1', cdbi_bind => 't1');
+__PACKAGE__->make_tested_value('text2', cdbi_bind => 't2');
+__PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
 $object = HTC3->new();
-is($object->PrimaryField, 'ht_id');
+is_deeply($object->PrimaryFields, [ 'ht_id' ]);
 $object->ht_id(1);
 ok($object->cdbi_load);
 is($object->text1, 'a');
 
 package HTC4;
 use base 'HTML::Tested::ClassDBI';
-
-__PACKAGE__->make_tested_value('txt');
-__PACKAGE__->bind_to_class_dbi(CDBI2 => txt => 'txt');
+__PACKAGE__->make_tested_value('ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->make_tested_value('txt', cdbi_bind => '');
+__PACKAGE__->bind_to_class_dbi('CDBI2');
 
 package main;
 
 $object = HTC4->new();
-is($object->PrimaryField, 'ht_id');
+is_deeply($object->PrimaryFields, [ 'ht_id' ]);
 
 package HTC5;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_link('lnk');
-
-__PACKAGE__->bind_to_class_dbi(CDBI => lnk => [ 't1','t2' ]);
+__PACKAGE__->make_tested_value('ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->make_tested_link('lnk', cdbi_bind => [ 't1', 't2' ]);
+__PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
 
@@ -250,7 +251,8 @@ $c1->t2('b');
 $c1->update;
 
 $object = HTC6->new();
-is($object->PrimaryField, 'ht_id');
+is_deeply([ sort { $a cmp $b } @{ $object->PrimaryFields } ]
+		, [ 'ht_id', 'idl' ]);
 $object->ht_id(1);
 ok($object->cdbi_load);
 is($object->t1, 'a');
@@ -261,7 +263,70 @@ is($object->t2, undef);
 
 my $stash = {};
 $object->ht_render($stash);
-is_deeply($stash->{ht_id}, <<ENDS) or diag(Dumper($stash));
-<input type="hidden" name="ht_id" id="ht_id" value="1" />
-ENDS
+unlike($stash->{ht_id}, qr/\"1\"/);
+like($stash->{ht_id}, qr/hidden/) or diag(Dumper($stash));
 
+is_deeply([ HTML::Tested::Test->check_stash(ref($object), 
+		$stash, { HT_SEALED_ht_id => 1 }) ], []);
+
+package HTC7;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->make_tested_marked_value('ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->bind_to_class_dbi('CDBI');
+
+package main;
+$object = HTC7->new();
+is_deeply($object->PrimaryFields, [ 'ht_id' ]);
+$object->ht_id(1);
+
+$stash = {};
+$object->ht_render($stash);
+unlike($stash->{ht_id}, qr/1$/) or diag(Dumper($stash));
+is_deeply([ HTML::Tested::Test->check_stash(ref($object), 
+		$stash, { HT_SEALED_ht_id => 1 }) ], []);
+
+package HTC8;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->make_tested_link('l', cdbi_bind => [ 'Primary' ]);
+__PACKAGE__->bind_to_class_dbi('CDBI2');
+
+package main;
+my $htc8_arr = HTC8->query_class_dbi('retrieve_all');
+is(@$htc8_arr, 1);
+is_deeply($htc8_arr->[0]->l, [ '12_14' ]);
+
+package HTC9;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->make_tested_checkbox('c', cdbi_bind => [ 'Primary' ]);
+__PACKAGE__->bind_to_class_dbi('CDBI2');
+
+package main;
+my $htc9_arr = HTC9->query_class_dbi('retrieve_all');
+is(@$htc9_arr, 1);
+is_deeply($htc9_arr->[0]->c, [ '12_14' ]);
+
+my $htc9 = HTC9->new({ c => '12_14' });
+is($htc9->class_dbi_object, undef);
+$htc9->cdbi_load;
+isa_ok($htc9->class_dbi_object, 'CDBI2');
+
+package HTC10;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->make_tested_hidden('hid', cdbi_bind => [ 'Primary' ]);
+__PACKAGE__->make_tested_checkbox('c', cdbi_bind => [ 'Primary' ]);
+__PACKAGE__->bind_to_class_dbi('CDBI2');
+
+package main;
+
+is_deeply([ sort { $a cmp $b } @{ HTC10->PrimaryFields } ]
+		, [ 'c', 'hid' ]);
+
+my $htc10 = HTC10->new({ c => '12_14' });
+is($htc10->class_dbi_object, undef);
+$htc10->cdbi_load;
+isa_ok($htc10->class_dbi_object, 'CDBI2');
+
+$htc10 = HTC10->new({ hid => '12_14' });
+is($htc10->class_dbi_object, undef);
+$htc10->cdbi_load;
+isa_ok($htc10->class_dbi_object, 'CDBI2');
