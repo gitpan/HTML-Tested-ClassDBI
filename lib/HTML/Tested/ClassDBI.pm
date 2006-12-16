@@ -28,13 +28,14 @@ __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('Fields_To_Columns_Map');
 __PACKAGE__->mk_classdata('PrimaryFields');
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
 	my $ftc = $class->Fields_To_Columns_Map; 
-	while (my ($n, $v) = each %{ $class->Widgets_Map }) {
+	for my $v (@{ $class->Widgets_List }) {
 		next unless exists $v->options->{cdbi_bind};
+		my $n = $v->name;
 		$ftc->{$n} = ($v->options->{cdbi_bind} || $n);
 	}
 }
@@ -180,7 +181,7 @@ ENDS
 	while (my ($n, $v) = each %{ $class->Fields_To_Columns_Map }) {
 		next unless $not_nullable{$v};
 		HTML::Tested::Value::Form::Push_Constraints(
-				$class->Widgets_Map->{$n}, '/.+/');
+				$class->ht_find_widget($n), '/.+/');
 	}
 }
 

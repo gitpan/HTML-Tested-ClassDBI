@@ -1,8 +1,6 @@
 MANIFEST
 README
 LICENSE
-Todo
-Changes
 Makefile.PL
 lib/HTML/Tested/ClassDBI.pm
 t/001_load.t

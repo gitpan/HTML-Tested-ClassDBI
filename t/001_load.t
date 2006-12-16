@@ -9,9 +9,7 @@ use Data::Dumper;
 use HTML::Tested::Seal;
 use HTML::Tested::Test;
 
-BEGIN { $SIG{__DIE__} = sub { diag(Carp::longmess(@_)); };
-	use_ok('HTML::Tested::ClassDBI'); 
-}
+BEGIN { use_ok('HTML::Tested::ClassDBI'); }
 
 HTML::Tested::Seal->instance('boo boo boo');
 
@@ -281,7 +279,7 @@ $object->ht_id(1);
 
 $stash = {};
 $object->ht_render($stash);
-unlike($stash->{ht_id}, qr/1$/) or diag(Dumper($stash));
+unlike($stash->{ht_id}, qr/\b1$/) or diag(Dumper($stash));
 is_deeply([ HTML::Tested::Test->check_stash(ref($object), 
 		$stash, { HT_SEALED_ht_id => 1 }) ], []);
 

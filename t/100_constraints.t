@@ -6,9 +6,7 @@ use Test::TempDatabase;
 use Class::DBI;
 use Carp;
 
-BEGIN { $SIG{__DIE__} = sub { diag(Carp::longmess(@_)); };
-	use_ok( 'HTML::Tested::ClassDBI' ); 
-}
+BEGIN { use_ok( 'HTML::Tested::ClassDBI' ); }
 
 my $tdb = Test::TempDatabase->create(dbname => 'ht_class_dbi_test_2',
 			dbi_args => { RootClass => 'DBIx::ContextualFetch' });
