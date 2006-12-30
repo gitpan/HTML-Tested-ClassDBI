@@ -8,6 +8,13 @@ use Carp;
 use Data::Dumper;
 use HTML::Tested::Seal;
 use HTML::Tested::Test;
+use HTML::Tested qw(HTV);
+use HTML::Tested::Value;
+use HTML::Tested::Value::Link;
+use HTML::Tested::Value::EditBox;
+use HTML::Tested::Value::Hidden;
+use HTML::Tested::Value::CheckBox;
+use HTML::Tested::Value::Marked;
 
 BEGIN { use_ok('HTML::Tested::ClassDBI'); }
 
@@ -42,9 +49,9 @@ is($c1->i1, 1);
 
 package HTC;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_value('id1', cdbi_bind => 'Primary');
-__PACKAGE__->make_tested_value('text1', cdbi_bind => 't1');
-__PACKAGE__->make_tested_value('text2', cdbi_bind => 't2');
+__PACKAGE__->ht_add_widget(::HTV, 'id1', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV, 'text1', cdbi_bind => 't1');
+__PACKAGE__->ht_add_widget(::HTV, 'text2', cdbi_bind => 't2');
 
 __PACKAGE__->bind_to_class_dbi('CDBI');
 
@@ -109,8 +116,8 @@ ok($c21);
 package HTC2;
 use base 'HTML::Tested::ClassDBI';
 
-__PACKAGE__->make_tested_value('id', cdbi_bind => 'Primary');
-__PACKAGE__->make_tested_value('txt', cdbi_bind => '');
+__PACKAGE__->ht_add_widget(::HTV, 'id', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV, 'txt', cdbi_bind => '');
 __PACKAGE__->bind_to_class_dbi('CDBI2');
 
 package main;
@@ -159,9 +166,9 @@ is($o->id2, 20);
 
 package HTC1;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_value('id1', cdbi_bind => 'Primary');
-__PACKAGE__->make_tested_value('text1', cdbi_bind => 't1');
-__PACKAGE__->make_tested_value('text2', cdbi_bind => 't2');
+__PACKAGE__->ht_add_widget(::HTV, 'id1', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV, 'text1', cdbi_bind => 't1');
+__PACKAGE__->ht_add_widget(::HTV, 'text2', cdbi_bind => 't2');
 __PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
@@ -192,9 +199,9 @@ is($object->can('ht_id'), undef);
 
 package HTC3;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_value('ht_id', cdbi_bind => 'Primary');
-__PACKAGE__->make_tested_value('text1', cdbi_bind => 't1');
-__PACKAGE__->make_tested_value('text2', cdbi_bind => 't2');
+__PACKAGE__->ht_add_widget(::HTV, 'ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV, 'text1', cdbi_bind => 't1');
+__PACKAGE__->ht_add_widget(::HTV, 'text2', cdbi_bind => 't2');
 __PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
@@ -206,8 +213,8 @@ is($object->text1, 'a');
 
 package HTC4;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_value('ht_id', cdbi_bind => 'Primary');
-__PACKAGE__->make_tested_value('txt', cdbi_bind => '');
+__PACKAGE__->ht_add_widget(::HTV, 'ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV, 'txt', cdbi_bind => '');
 __PACKAGE__->bind_to_class_dbi('CDBI2');
 
 package main;
@@ -217,8 +224,8 @@ is_deeply($object->PrimaryFields, [ 'ht_id' ]);
 
 package HTC5;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_value('ht_id', cdbi_bind => 'Primary');
-__PACKAGE__->make_tested_link('lnk', cdbi_bind => [ 't1', 't2' ]);
+__PACKAGE__->ht_add_widget(::HTV, 'ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV."::Link", 'lnk', cdbi_bind => [ 't1', 't2' ]);
 __PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
@@ -235,12 +242,13 @@ ok($object->cdbi_create_or_update);
 package HTC6;
 use base 'HTML::Tested::ClassDBI';
 
-__PACKAGE__->make_tested_hidden('ht_id', cdbi_bind => 'Primary');
-__PACKAGE__->make_tested_value('t1', cdbi_bind => '');
-__PACKAGE__->make_tested_edit_box('text2', cdbi_bind => 't2');
-__PACKAGE__->make_tested_link('t2l', cdbi_bind => [ 't1', 't2' ]);
-__PACKAGE__->make_tested_link('idl', cdbi_bind => [ 't1', 'Primary' ]);
-__PACKAGE__->make_tested_value('t2');
+__PACKAGE__->ht_add_widget(::HTV."::Hidden", 'ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV, 't1', cdbi_bind => '');
+__PACKAGE__->ht_add_widget(::HTV."::EditBox", 'text2', cdbi_bind => 't2');
+__PACKAGE__->ht_add_widget(::HTV."::Link", 't2l', cdbi_bind => [ 't1', 't2' ]);
+__PACKAGE__->ht_add_widget(::HTV."::Link", 'idl'
+		, cdbi_bind => [ 't1', 'Primary' ]);
+__PACKAGE__->ht_add_widget(::HTV, 't2');
 __PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
@@ -269,7 +277,7 @@ is_deeply([ HTML::Tested::Test->check_stash(ref($object),
 
 package HTC7;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_marked_value('ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV."::Marked", 'ht_id', cdbi_bind => 'Primary');
 __PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
@@ -285,7 +293,7 @@ is_deeply([ HTML::Tested::Test->check_stash(ref($object),
 
 package HTC8;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_link('l', cdbi_bind => [ 'Primary' ]);
+__PACKAGE__->ht_add_widget(::HTV."::Link", 'l', cdbi_bind => [ 'Primary' ]);
 __PACKAGE__->bind_to_class_dbi('CDBI2');
 
 package main;
@@ -295,7 +303,7 @@ is_deeply($htc8_arr->[0]->l, [ '12_14' ]);
 
 package HTC9;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_checkbox('c', cdbi_bind => [ 'Primary' ]);
+__PACKAGE__->ht_add_widget(::HTV."::CheckBox", 'c', cdbi_bind => [ 'Primary' ]);
 __PACKAGE__->bind_to_class_dbi('CDBI2');
 
 package main;
@@ -310,8 +318,8 @@ isa_ok($htc9->class_dbi_object, 'CDBI2');
 
 package HTC10;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_hidden('hid', cdbi_bind => [ 'Primary' ]);
-__PACKAGE__->make_tested_checkbox('c', cdbi_bind => [ 'Primary' ]);
+__PACKAGE__->ht_add_widget(::HTV."::Hidden", 'hid', cdbi_bind => [ 'Primary' ]);
+__PACKAGE__->ht_add_widget(::HTV."::CheckBox", 'c', cdbi_bind => [ 'Primary' ]);
 __PACKAGE__->bind_to_class_dbi('CDBI2');
 
 package main;

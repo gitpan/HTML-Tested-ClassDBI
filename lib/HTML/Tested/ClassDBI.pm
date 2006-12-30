@@ -7,9 +7,8 @@ HTML::Tested::ClassDBI - Enhances HTML::Tested to work with Class::DBI
 	package MyClass;
 	use base 'HTML::Tested::ClassDBI';
 
-	__PACKAGE__->make_tested_value('x');
-	__PACKAGE__->bind_to_class_dbi(MyClassDBI => 
-			x => 'col1');
+	__PACKAGE__->ht_add_widget('HTML::Tested::Value', 'x');
+	__PACKAGE__->bind_to_class_dbi('MyClassDBI');
 
 =head1 DESCRIPTION
 
@@ -28,7 +27,7 @@ __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('Fields_To_Columns_Map');
 __PACKAGE__->mk_classdata('PrimaryFields');
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
@@ -53,6 +52,7 @@ sub bind_to_class_dbi {
 		push @{ $class->PrimaryFields }, $n;
 		$class->ht_set_widget_option($n, "is_sealed", 1);
 	}
+	$class->_load_db_constraints;
 }
 
 sub _get_cdbi_pk_for_retrieve {
@@ -170,7 +170,7 @@ sub cdbi_construct {
 
 sub cdbi_delete { shift()->cdbi_construct->delete; }
 
-sub load_db_constraints {
+sub _load_db_constraints {
 	my $class = shift;
 	my $arr = $class->CDBI_Class->db_Main->selectall_arrayref(<<ENDS
 SELECT column_name FROM information_schema.columns WHERE
@@ -180,8 +180,7 @@ ENDS
 	my %not_nullable = map { ($_->[0], 1) } @$arr;
 	while (my ($n, $v) = each %{ $class->Fields_To_Columns_Map }) {
 		next unless $not_nullable{$v};
-		HTML::Tested::Value::Form::Push_Constraints(
-				$class->ht_find_widget($n), '/.+/');
+		$class->ht_find_widget($n)->push_constraint([ 'defined', '' ]);
 	}
 }
 

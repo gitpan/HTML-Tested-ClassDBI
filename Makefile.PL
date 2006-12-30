@@ -11,6 +11,6 @@ WriteMakefile(
     PREREQ_PM    => {
                      'Test::TempDatabase' => '',
 		     'Class::DBI' => '',
-		     'HTML::Tested' => '0.20',
+		     'HTML::Tested' => '0.21',
                     },
 );

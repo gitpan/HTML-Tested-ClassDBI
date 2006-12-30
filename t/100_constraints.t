@@ -4,6 +4,8 @@ use Test::More tests => 10;
 
 use Test::TempDatabase;
 use Class::DBI;
+use HTML::Tested qw(HTV);
+use HTML::Tested::Value;
 use Carp;
 
 BEGIN { use_ok( 'HTML::Tested::ClassDBI' ); }
@@ -38,12 +40,10 @@ is($c1->i1, 1);
 
 package HTC;
 use base 'HTML::Tested::ClassDBI';
-__PACKAGE__->make_tested_form('v', children => [
-		t1 => 'value', { cdbi_bind => '' },
-		t2 => 'value', { cdbi_bind => '' }, ]);
-__PACKAGE__->make_tested_value('ht_id', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV, 't1', cdbi_bind => '');
+__PACKAGE__->ht_add_widget(::HTV, 't2', cdbi_bind => '');
+__PACKAGE__->ht_add_widget(::HTV, 'ht_id', cdbi_bind => 'Primary');
 __PACKAGE__->bind_to_class_dbi('CDBI');
-__PACKAGE__->load_db_constraints;
 
 package main;
 
@@ -51,8 +51,8 @@ my $o = HTC->new({ ht_id => 1 });
 ok($o->cdbi_load);
 is($o->t1, 'a');
 is($o->t2, 'b');
-is_deeply([ $o->validate_v ], []);
+is_deeply([ $o->ht_validate ], []);
 
 $o->t1(undef);
-is_deeply([ $o->validate_v ], [ 't1', '/.+/' ]);
+is_deeply([ $o->ht_validate ], [ [ 't1', 'defined', '' ] ]);
 
