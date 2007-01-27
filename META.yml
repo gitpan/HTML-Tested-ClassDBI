@@ -1,12 +1,12 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         HTML-Tested-ClassDBI
-version:      0.08
+version:      0.09
 version_from: lib/HTML/Tested/ClassDBI.pm
 installdirs:  site
 requires:
-    Class::DBI:                    
-    HTML::Tested:                  0.21
+    Class::DBI::Pg::More:          0.02
+    HTML::Tested:                  0.22
     Test::TempDatabase:            
 
 distribution_type: module

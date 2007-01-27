@@ -23,16 +23,14 @@ $dbh->do("insert into table1 (t1) values (?)", undef, 'дед');
 is_deeply($dbh->selectcol_arrayref("select t1 from table1"), [ 'дед' ]);
 
 package CDBI_Base;
-use base 'Class::DBI';
+use base 'Class::DBI::Pg::More';
 
 sub db_Main { return $dbh; }
 
 package CDBI;
 use base 'CDBI_Base';
 
-__PACKAGE__->table('table1');
-__PACKAGE__->columns(Essential => qw/id t1/);
-__PACKAGE__->sequence('table1_id_seq');
+__PACKAGE__->set_up_table('table1');
 
 package HTC;
 use base 'HTML::Tested::ClassDBI';

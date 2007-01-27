@@ -3,7 +3,6 @@ use warnings FATAL => 'all';
 use Test::More tests => 79;
 
 use Test::TempDatabase;
-use Class::DBI;
 use Carp;
 use Data::Dumper;
 use HTML::Tested::Seal;
@@ -29,16 +28,14 @@ $dbh->do("CREATE TABLE table1 (i1 serial primary key, t1 text, t2 text)");
 is($dbh->{AutoCommit}, 1);
 
 package CDBI_Base;
-use base 'Class::DBI';
+use base 'Class::DBI::Pg::More';
 
 sub db_Main { return $dbh; }
 
 package CDBI;
 use base 'CDBI_Base';
 
-__PACKAGE__->table('table1');
-__PACKAGE__->columns(Essential => qw/i1 t1 t2/);
-__PACKAGE__->sequence('table1_i1_seq');
+__PACKAGE__->set_up_table('table1');
 
 package main;
 
@@ -83,8 +80,11 @@ is($c2->t2, 'd');
 is($c2->i1, 2);
 is_deeply([ sort { $a->i1 <=> $b->i1 } CDBI->retrieve_all ], [ $c1, $c2 ]);
 
-is($o2->id1, undef);
+is($o2->id1, 2);
 $o2->text2('e');
+
+# check that with cdbi_object the operation is update even though id == undef
+$o2->id1(undef);
 $c2 = $o2->cdbi_create_or_update;
 is($o2->id1, 2);
 is_deeply($c2, $o2->class_dbi_object);
@@ -104,9 +104,7 @@ $dbh->do("CREATE TABLE table2 (
 		primary key (id1, id2))");
 package CDBI2;
 use base 'CDBI_Base';
-__PACKAGE__->table('table2');
-__PACKAGE__->columns(Primary => qw/id1 id2/);
-__PACKAGE__->columns(Essential => qw/txt unrelated/);
+__PACKAGE__->set_up_table('table2');
 
 package main;
 

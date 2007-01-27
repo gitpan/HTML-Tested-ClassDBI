@@ -4,6 +4,7 @@ LICENSE
 Makefile.PL
 lib/HTML/Tested/ClassDBI.pm
 t/001_load.t
+t/030_datetime.t
 t/050_unicode.t
 t/100_constraints.t
 META.yml                                 Module meta-data (added by MakeMaker)

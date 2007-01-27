@@ -27,7 +27,7 @@ __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('Fields_To_Columns_Map');
 __PACKAGE__->mk_classdata('PrimaryFields');
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
@@ -50,9 +50,11 @@ sub bind_to_class_dbi {
 		next unless ($v eq 'Primary'
 			|| (ref($v) && grep { $_ eq 'Primary' } @$v));
 		push @{ $class->PrimaryFields }, $n;
-		$class->ht_set_widget_option($n, "is_sealed", 1);
+		my $opts = $class->ht_find_widget($n)->options;
+		$class->ht_set_widget_option($n, "is_sealed", 1)
+			unless exists $opts->{is_sealed};
 	}
-	$class->_load_db_constraints;
+	$class->_load_db_info;
 }
 
 sub _get_cdbi_pk_for_retrieve {
@@ -135,6 +137,7 @@ sub cdbi_create {
 	}
 	my $res = $self->CDBI_Class->create(\%args);
 	$self->class_dbi_object($res);
+	$self->_fill_in_from_class_dbi;
 	return $res;
 }
 
@@ -170,17 +173,40 @@ sub cdbi_construct {
 
 sub cdbi_delete { shift()->cdbi_construct->delete; }
 
-sub _load_db_constraints {
+my %_dt_fmts = (date => '%x', 'time' => '%X', timestamp => '%c');
+
+sub _info_and_datetime {
+	my ($class, $v) = @_;
+	my $i = $class->CDBI_Class->pg_column_info($v)
+			or die "# Unable to find info for $v";
+	my ($t) = ($i->{type} =~ /^(\w+)/);
+	return ($i, $_dt_fmts{$t});
+}
+
+sub _setup_datetime_for_array {
+	my ($class, $w, $v) = @_;
+	for (my $i = 0; $i < @$v; $i++) {
+		next if $v->[$i] eq 'Primary';
+		my (undef, $dt_fmt) = $class->_info_and_datetime($v->[$i]);
+		next unless $dt_fmt;
+		my $iopts = $w->options->{$i} || {};
+		$w->setup_datetime_option($dt_fmt, $iopts);
+		$w->options->{$i} = $iopts;
+	}
+}
+
+sub _load_db_info {
 	my $class = shift;
-	my $arr = $class->CDBI_Class->db_Main->selectall_arrayref(<<ENDS
-SELECT column_name FROM information_schema.columns WHERE
-	table_name = ? and is_nullable = 'NO'
-ENDS
-	, undef, $class->CDBI_Class->table);
-	my %not_nullable = map { ($_->[0], 1) } @$arr;
 	while (my ($n, $v) = each %{ $class->Fields_To_Columns_Map }) {
-		next unless $not_nullable{$v};
-		$class->ht_find_widget($n)->push_constraint([ 'defined', '' ]);
+		next if $v eq 'Primary';
+		my $w = $class->ht_find_widget($n);
+		if (ref($v) eq 'ARRAY') {
+			$class->_setup_datetime_for_array($w, $v);
+			next;
+		}
+		my ($i, $dt_fmt) = $class->_info_and_datetime($v);
+		$w->push_constraint([ 'defined', '' ]) unless $i->{is_nullable};
+		$w->setup_datetime_option($dt_fmt) if $dt_fmt;
 	}
 }
 

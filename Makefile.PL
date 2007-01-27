@@ -10,7 +10,7 @@ WriteMakefile(
     ABSTRACT     => 'Enhances HTML::Tested to work with Class::DBI classes',
     PREREQ_PM    => {
                      'Test::TempDatabase' => '',
-		     'Class::DBI' => '',
-		     'HTML::Tested' => '0.21',
+		     'Class::DBI::Pg::More' => '0.02',
+		     'HTML::Tested' => '0.22',
                     },
 );

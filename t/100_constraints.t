@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 10;
+use Test::More tests => 11;
 
 use Test::TempDatabase;
 use Class::DBI;
@@ -20,16 +20,14 @@ $dbh->do("CREATE TABLE table1 (i1 serial primary key, "
 is($dbh->{AutoCommit}, 1);
 
 package CDBI_Base;
-use base 'Class::DBI';
+use base 'Class::DBI::Pg::More';
 
 sub db_Main { return $dbh; }
 
 package CDBI;
 use base 'CDBI_Base';
 
-__PACKAGE__->table('table1');
-__PACKAGE__->columns(Essential => qw/i1 t1 t2/);
-__PACKAGE__->sequence('table1_i1_seq');
+__PACKAGE__->set_up_table('table1');
 
 package main;
 
@@ -56,3 +54,6 @@ is_deeply([ $o->ht_validate ], []);
 $o->t1(undef);
 is_deeply([ $o->ht_validate ], [ [ 't1', 'defined', '' ] ]);
 
+$o = HTC->new({ t1 => 'c', t2 => 'd' });
+# Primary should not validate - it can be empty on create
+is_deeply([ $o->ht_validate ], []);
