@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 14;
+use Test::More tests => 15;
 
 use Test::TempDatabase;
 use HTML::Tested qw(HTV);
@@ -87,3 +87,15 @@ is($t22->id, 1);
 is($t22->t1->hour, 13);
 is($t22->t2->hour, 14);
 
+T2->columns(TEMP => "hi");
+T2->set_sql(with_hi => "select __ESSENTIAL__, 12 as hi from __TABLE__");
+
+package H3;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->ht_add_widget(::HTV, 'id', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV, 'hi', cdbi_bind => '');
+__PACKAGE__->bind_to_class_dbi('T2');
+
+package main;
+my $h3_res = H3->query_class_dbi('search_with_hi');
+is($h3_res->[0]->hi, 12);

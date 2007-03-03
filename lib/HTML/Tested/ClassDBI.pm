@@ -4,15 +4,30 @@ HTML::Tested::ClassDBI - Enhances HTML::Tested to work with Class::DBI
 
 =head1 SYNOPSIS
 
-	package MyClass;
-	use base 'HTML::Tested::ClassDBI';
+  package MyClass;
+  use base 'HTML::Tested::ClassDBI';
+  
+  __PACKAGE__->ht_add_widget('HTML::Tested::Value'
+		  , id => cdbi_bind => "Primary");
+  __PACKAGE__->ht_add_widget('HTML::Tested::Value', x => cdbi_bind => "");
+  __PACKAGE__->bind_to_class_dbi('MyClassDBI');
 
-	__PACKAGE__->ht_add_widget('HTML::Tested::Value', 'x');
-	__PACKAGE__->bind_to_class_dbi('MyClassDBI');
+  # And later somewhere ...
+  # Query and load underlying Class::DBI:
+  my $list = MyClass->query_class_dbi(search => x => 15);
 
+  # or sync it to the database:
+  $obj->cdbi_create_or_update;
+	
 =head1 DESCRIPTION
 
-To be done.
+This class provides mapping between Class::DBI and HTML::Tested objects.
+
+It inherits from HTML::Tested. Widgets created with C<ht_add_widget> can have
+additional C<cdbi_bind> property.
+
+After calling C<bind_to_class_dbi> you would be able to automatically
+synchronize between HTML::Tested::ClassDBI instance and underlying Class::DBI.
 
 =cut
 
@@ -27,7 +42,7 @@ __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('Fields_To_Columns_Map');
 __PACKAGE__->mk_classdata('PrimaryFields');
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
@@ -108,6 +123,17 @@ sub _retrieve_cdbi_object {
 	return $cdbi;
 }
 
+=head1 METHODS
+
+=head2 $obj->cdbi_load
+
+Loads Class::DBI object using primary key field - the widget with special
+C<cdbi_bind> => 'Primary'.
+
+This method populates the rest of the bound fields with the values of loaded
+Class::DBI object.
+
+=cut
 sub cdbi_load {
 	my $self = shift;
 	my $cdbi = $self->_retrieve_cdbi_object or return;
@@ -115,6 +141,14 @@ sub cdbi_load {
 	return $cdbi;
 }
 
+=head2 $class->query_class_dbi($func, @params)
+
+This function loads underlying Class::DBI objects using query function $func
+(e.g C<search>) with parameters contained in C<@params>.
+
+For each of those objects new HTML::Tested::ClassDBI instance is created.
+
+=cut
 sub query_class_dbi {
 	my ($class, $func, @params) = @_;
 	my @cdbis = $class->CDBI_Class->$func(@params);
@@ -125,6 +159,11 @@ sub query_class_dbi {
 	} @cdbis ];
 }
 
+=head2 $obj->cdbi_create
+
+Creates new database record using $obj fields.
+
+=cut
 sub cdbi_create {
 	my $self = shift;
 	my %args;
@@ -141,6 +180,11 @@ sub cdbi_create {
 	return $res;
 }
 
+=head2 $obj->cdbi_update
+
+Updates database records using $obj fields.
+
+=cut
 sub cdbi_update {
 	my $self = shift;
 	my %args;
@@ -159,26 +203,41 @@ sub cdbi_update {
 	return $obj;
 }
 
+=head2 $obj->cdbi_create_or_update
+
+Calls C<cdbi_create> or C<cdbi_update> base on whether the database record
+exists already.
+
+=cut
 sub cdbi_create_or_update {
 	my $self = shift;
 	return ($self->class_dbi_object || $self->_retrieve_cdbi_object)
 		? $self->cdbi_update : $self->cdbi_create;
 }
 
+=head2 $obj->cdbi_construct
+
+Constructs underlying Class::DBI object using $obj fields.
+
+=cut
 sub cdbi_construct {
 	my $self = shift;
 	return $self->CDBI_Class->construct(
 			$self->_get_cdbi_pk_for_retrieve);
 }
 
+=head2 $obj->cdbi_delete
+
+Deletes database record using $obj fields.
+
+=cut
 sub cdbi_delete { shift()->cdbi_construct->delete; }
 
 my %_dt_fmts = (date => '%x', 'time' => '%X', timestamp => '%c');
 
 sub _info_and_datetime {
 	my ($class, $v) = @_;
-	my $i = $class->CDBI_Class->pg_column_info($v)
-			or die "# Unable to find info for $v";
+	my $i = $class->CDBI_Class->pg_column_info($v) or return ();
 	my ($t) = ($i->{type} =~ /^(\w+)/);
 	return ($i, $_dt_fmts{$t});
 }
