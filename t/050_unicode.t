@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 6;
+use Test::More tests => 13;
 
 use Test::TempDatabase;
 use HTML::Tested qw(HTV);
@@ -14,7 +14,8 @@ BEGIN { use_ok('HTML::Tested::ClassDBI'); }
 HTML::Tested::Seal->instance('boo boo boo');
 
 my $tdb = Test::TempDatabase->create(dbname => 'ht_class_dbi_test',
-		dbi_args => { RootClass => 'DBIx::ContextualFetch' });
+		dbi_args => { RootClass => 'DBIx::ContextualFetch'
+			, RaiseError => 1, PrintError => undef });
 my $dbh = $tdb->handle;
 $dbh->do('SET client_min_messages TO error');
 $dbh->do("CREATE TABLE table1 (id serial primary key, t1 text not null)");
@@ -49,3 +50,37 @@ $object->ht_render($stash);
 is($stash->{t1}, '<!-- t1 --> дед');
 is_deeply([ HTML::Tested::Test->check_stash(ref($object), 
 		$stash, { HT_SEALED_id => 1, t1 => 'дед' }) ], []);
+
+package H2;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->ht_add_widget(::HTV, 'id', cdbi_bind => 'Primary');
+__PACKAGE__->bind_to_class_dbi('CDBI');
+
+package main;
+my $obj = H2->new({ id => 100 });
+$obj->cdbi_create_or_update({ t1 => 'hi' });
+is($obj->class_dbi_object->t1, 'hi');
+
+$obj->class_dbi_object(undef);
+$obj->cdbi_update({ t1 => "moo" });
+is($obj->class_dbi_object->t1, 'moo');
+
+package H3;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->ht_add_widget(::HTV, 'id', cdbi_bind => 'Primary');
+__PACKAGE__->ht_add_widget(::HTV, 't1', cdbi_bind => '', cdbi_readonly => 1);
+__PACKAGE__->bind_to_class_dbi('CDBI');
+
+package main;
+$obj = H3->new({ id => 100 });
+$obj->cdbi_load;
+is($obj->class_dbi_object->t1, 'moo');
+is($obj->t1, 'moo');
+$obj->t1(undef);
+$obj->cdbi_update;
+is($obj->class_dbi_object->t1, 'moo');
+is($obj->t1, 'moo');
+
+$obj = H3->new({ id => 200 });
+$obj->cdbi_update;
+ok(1, "empty update is fine");

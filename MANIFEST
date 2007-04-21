@@ -2,6 +2,7 @@ MANIFEST
 README
 LICENSE
 Makefile.PL
+lib/HTML/Tested/ClassDBI/Field.pm
 lib/HTML/Tested/ClassDBI.pm
 t/001_load.t
 t/030_datetime.t

@@ -37,38 +37,46 @@ use warnings FATAL => 'all';
 package HTML::Tested::ClassDBI;
 use base 'HTML::Tested';
 use Carp;
+use HTML::Tested::ClassDBI::Field;
+
 __PACKAGE__->mk_accessors(qw(class_dbi_object));
 __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('Fields_To_Columns_Map');
 __PACKAGE__->mk_classdata('PrimaryFields');
+__PACKAGE__->mk_classdata('Field_Handlers');
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
 	my $ftc = $class->Fields_To_Columns_Map; 
 	for my $v (@{ $class->Widgets_List }) {
-		next unless exists $v->options->{cdbi_bind};
+		my $f = HTML::Tested::ClassDBI::Field->new($class, $v) or next;
 		my $n = $v->name;
+		$class->Field_Handlers->{$n} = $f;
 		$ftc->{$n} = ($v->options->{cdbi_bind} || $n);
 	}
 }
 
+=head1 METHODS
+
+=head2 $class->bind_to_class_dbi($cdbi_class)
+
+Binds $class to $cdbi_class, by going over all fields declared with C<cdbi_bind>
+option.
+
+C<cdbi_bind> value could be one of the following:
+name of the column, empty string for the column named the same as field or for
+array of columns.
+
+=cut
 sub bind_to_class_dbi {
 	my ($class, $dbi_class) = @_;
 	$class->CDBI_Class($dbi_class);
 	$class->Fields_To_Columns_Map({});
+	$class->Field_Handlers({});
 	$class->PrimaryFields([]);
 	$class->cdbi_bind_from_fields;
-	my %ftc = %{ $class->Fields_To_Columns_Map };
-	while (my ($n, $v) = each %ftc) {
-		next unless ($v eq 'Primary'
-			|| (ref($v) && grep { $_ eq 'Primary' } @$v));
-		push @{ $class->PrimaryFields }, $n;
-		my $opts = $class->ht_find_widget($n)->options;
-		$class->ht_set_widget_option($n, "is_sealed", 1)
-			unless exists $opts->{is_sealed};
-	}
 	$class->_load_db_info;
 }
 
@@ -77,8 +85,8 @@ sub _get_cdbi_pk_for_retrieve {
 	$res ||= {};
 
 	my @pc = $self->CDBI_Class->primary_columns;
-	my ($pv) = grep { defined($_) } map { $self->$_ }
-			@{ $self->PrimaryFields };
+	my $pf = $self->PrimaryFields;
+	my ($pv) = grep { defined($_) } map { $self->$_ } @$pf;
 	return undef unless defined($pv);
 	my @vals = split('_', $pv);
 	for (my $i = 0; $i < @pc; $i++) {
@@ -87,30 +95,12 @@ sub _get_cdbi_pk_for_retrieve {
 	return $res;
 }
 
-sub _make_cdbi_pk_value {
-	my $self = shift;
-	my $cdbi = $self->class_dbi_object;
-	my @pvals = map { $cdbi->$_ } $cdbi->primary_columns;
-	return join('_', @pvals);
-}
-
-sub _get_column_value {
-	my ($self, $col) = @_;
-	my $val;
-	if (ref($col) eq 'ARRAY') {
-		$val = [ map { $self->_get_column_value($_) } @$col ];
-	} elsif ($col eq 'Primary') {
-		$val = $self->_make_cdbi_pk_value;
-	} else {
-		return $self->class_dbi_object->$col;
-	}
-}
-
 sub _fill_in_from_class_dbi {
 	my $self = shift;
-	my $ftcm = $self->Fields_To_Columns_Map;
-	while (my ($f, $col) = each %$ftcm) {
-		$self->$f($self->_get_column_value($col));
+	my $fhs = $self->Field_Handlers;
+	my $cdbi = $self->class_dbi_object;
+	while (my ($f, $h) = each %$fhs) {
+		$self->$f($h->get_column_value($cdbi));
 	}
 }
 
@@ -122,8 +112,6 @@ sub _retrieve_cdbi_object {
 	$self->class_dbi_object($cdbi);
 	return $cdbi;
 }
-
-=head1 METHODS
 
 =head2 $obj->cdbi_load
 
@@ -159,60 +147,65 @@ sub query_class_dbi {
 	} @cdbis ];
 }
 
-=head2 $obj->cdbi_create
+=head2 $obj->cdbi_create($args)
 
 Creates new database record using $obj fields.
 
+Additional (optional) arguments are given by $args hash refernce.
+
 =cut
 sub cdbi_create {
-	my $self = shift;
-	my %args;
+	my ($self, $args) = @_;
+	my $cargs = $self->_get_cdbi_pk_for_retrieve || {};
 	while (my ($field, $col) = each %{ $self->Fields_To_Columns_Map }) {
-		if ($col eq 'Primary') {
-			$self->_get_cdbi_pk_for_retrieve(\%args);
-		} else {
-			$args{$col} = $self->$field;
+		if ($col ne 'Primary' && !ref($col)) {
+			$cargs->{$col} = $self->$field;
 		}
 	}
-	my $res = $self->CDBI_Class->create(\%args);
+	while (my ($n, $v) = each %{ $args || {} }) {
+		$cargs->{$n} = $v;
+	}
+	my $res = $self->CDBI_Class->create($cargs);
 	$self->class_dbi_object($res);
 	$self->_fill_in_from_class_dbi;
 	return $res;
 }
 
-=head2 $obj->cdbi_update
+=head2 $obj->cdbi_update($args)
 
 Updates database records using $obj fields.
 
+Additional (optional) arguments are given by $args hash refernce.
+
 =cut
 sub cdbi_update {
-	my $self = shift;
-	my %args;
-	my $obj = $self->class_dbi_object;
-	my %pc = map { ($_, 1) } $obj->primary_columns;
-	while (my ($field, $col) = each %{ $self->Fields_To_Columns_Map }) {
-		if ($col eq 'Primary') {
-			$self->$field($self->_make_cdbi_pk_value);
-		} elsif ($pc{$col}) {
-			$self->$field($obj->$col);
-		} elsif (!ref($col)) {
-			$obj->$col($self->$field);
-		}
+	my ($self, $args) = @_;
+	my $cdbi = $self->class_dbi_object || $self->_retrieve_cdbi_object
+			|| return;
+	my $fhs = $self->Field_Handlers;
+	while (my ($field, $h) = each %$fhs) {
+		$h->update_column($cdbi, $self->$field);
 	}
-	$obj->update;
-	return $obj;
+	while (my ($n, $v) = each %{ $args || {} }) {
+		$cdbi->$n($v);
+	}
+	$cdbi->update;
+	$self->_fill_in_from_class_dbi;
+	return $cdbi;
 }
 
-=head2 $obj->cdbi_create_or_update
+=head2 $obj->cdbi_create_or_update($args)
 
-Calls C<cdbi_create> or C<cdbi_update> base on whether the database record
+Calls C<cdbi_create> or C<cdbi_update> based on whether the database record
 exists already.
+
+Additional (optional) arguments are given by $args hash refernce.
 
 =cut
 sub cdbi_create_or_update {
-	my $self = shift;
+	my ($self, $args) = @_;
 	return ($self->class_dbi_object || $self->_retrieve_cdbi_object)
-		? $self->cdbi_update : $self->cdbi_create;
+		? $self->cdbi_update($args) : $self->cdbi_create($args);
 }
 
 =head2 $obj->cdbi_construct

@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 15;
+use Test::More tests => 17;
 
 use Test::TempDatabase;
 use HTML::Tested qw(HTV);
@@ -99,3 +99,19 @@ __PACKAGE__->bind_to_class_dbi('T2');
 package main;
 my $h3_res = H3->query_class_dbi('search_with_hi');
 is($h3_res->[0]->hi, 12);
+
+package H4;
+use base 'H3';
+__PACKAGE__->ht_add_widget(::HTV, 'h3', cdbi_bind => 2);
+
+package H5;
+use base 'H3';
+__PACKAGE__->ht_add_widget(::HTV, 'h3', cdbi_bind => [ 2 ]);
+
+package main;
+
+eval { H4->bind_to_class_dbi('T2'); };
+like($@, qr/h3.*column/);
+
+eval { H5->bind_to_class_dbi('T2'); };
+like($@, qr/h3.*column/);
