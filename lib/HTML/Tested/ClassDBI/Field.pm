@@ -23,9 +23,24 @@ sub get_column_value {
 }
 
 sub update_column {
-	my ($self, $cdbi, $val) = @_;
-	my $c = $self->[0];
-	$cdbi->$c($val) unless $self->[1];
+	my ($self, $setter, $val) = @_;
+	$setter->($self->[0], $val) unless $self->[1];
+}
+
+my %_dt_fmts = (date => '%x', 'time' => '%X', timestamp => '%c');
+
+sub setup_type_info {
+	my ($self, $root, $w, $info) = @_;
+	return if $self->[1]; # readonly
+	my $opts = $info;
+	if (!$info) {
+		$info = $root->pg_column_info($self->[0]) or return;
+		$w->push_constraint([ 'defined', '' ])
+			unless $info->{is_nullable};
+	}
+	return unless $info->{type};
+	my ($t) = ($info->{type} =~ /^(\w+)/);
+	$w->setup_datetime_option($_dt_fmts{$t}, $opts) if ($_dt_fmts{$t});
 }
 
 package HTML::Tested::ClassDBI::Field::Primary;
@@ -45,6 +60,7 @@ sub get_column_value {
 }
 
 sub update_column {}
+sub setup_type_info {}
 
 package HTML::Tested::ClassDBI::Field::Array;
 
@@ -61,7 +77,17 @@ sub get_column_value {
 
 sub update_column {}
 
+sub setup_type_info {
+	my ($self, $root, $w) = @_;
+	for (my $i = 0; $i < @$self; $i++) {
+		my $iopts = $w->options->{$i} || {};
+		$self->[$i]->setup_type_info($root, $w, $iopts);
+		$w->options->{$i} = $iopts if %$iopts;
+	}
+}
+
 package HTML::Tested::ClassDBI::Field;
+use HTML::Tested::ClassDBI::Upload;
 
 sub do_bless_arg {
 	my ($class, $root, $w, $arg) = @_;
@@ -77,10 +103,16 @@ sub do_bless_arg {
 
 sub new {
 	my ($class, $root, $w) = @_;
+	return HTML::Tested::ClassDBI::Upload->new($root
+			, $w->options->{cdbi_upload} || $w->name)
+		if (exists $w->options->{cdbi_upload});
+	return HTML::Tested::ClassDBI::Upload->new($root
+			, $w->options->{cdbi_upload_with_mime} || $w->name, 1)
+		if (exists $w->options->{cdbi_upload_with_mime});
 	return unless exists $w->options->{cdbi_bind};
 
 	my $arg = $w->options->{cdbi_bind} || $w->name;
-	$class->do_bless_arg($root, $w, $arg);
+	return $class->do_bless_arg($root, $w, $arg);
 }
 
 1;

@@ -10,6 +10,8 @@ HTML::Tested::ClassDBI - Enhances HTML::Tested to work with Class::DBI
   __PACKAGE__->ht_add_widget('HTML::Tested::Value'
 		  , id => cdbi_bind => "Primary");
   __PACKAGE__->ht_add_widget('HTML::Tested::Value', x => cdbi_bind => "");
+  __PACKAGE__->ht_add_widget('HTML::Tested::Value::Upload'
+  	, x => cdbi_upload => "largeobjectoid");
   __PACKAGE__->bind_to_class_dbi('MyClassDBI');
 
   # And later somewhere ...
@@ -41,20 +43,16 @@ use HTML::Tested::ClassDBI::Field;
 
 __PACKAGE__->mk_accessors(qw(class_dbi_object));
 __PACKAGE__->mk_classdata('CDBI_Class');
-__PACKAGE__->mk_classdata('Fields_To_Columns_Map');
 __PACKAGE__->mk_classdata('PrimaryFields');
 __PACKAGE__->mk_classdata('Field_Handlers');
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
-	my $ftc = $class->Fields_To_Columns_Map; 
 	for my $v (@{ $class->Widgets_List }) {
 		my $f = HTML::Tested::ClassDBI::Field->new($class, $v) or next;
-		my $n = $v->name;
-		$class->Field_Handlers->{$n} = $f;
-		$ftc->{$n} = ($v->options->{cdbi_bind} || $n);
+		$class->Field_Handlers->{$v->name} = $f;
 	}
 }
 
@@ -63,17 +61,26 @@ sub cdbi_bind_from_fields {
 =head2 $class->bind_to_class_dbi($cdbi_class)
 
 Binds $class to $cdbi_class, by going over all fields declared with C<cdbi_bind>
-option.
+or C<cdbi_upload> option.
 
-C<cdbi_bind> value could be one of the following:
+C<cdbi_bind> option value could be one of the following:
 name of the column, empty string for the column named the same as field or for
 array of columns.
+
+C<cdbi_upload> can be used to upload file into the database. Uploaded file is
+stored as PostgreSQL's large object. Its OID is assigned to the bound column.
+
+C<cdbi_upload_with_mime> uploads the file and prepends its mime type as a
+header. Use HTML::Tested::ClassDBI::Upload->strip_mime_header to pull it from
+the data.
+
+C<cdbi_readonly> boolean option can be used to make its widget readonly thus
+skipping its value during update. Read only widgets will not be validated.
 
 =cut
 sub bind_to_class_dbi {
 	my ($class, $dbi_class) = @_;
 	$class->CDBI_Class($dbi_class);
-	$class->Fields_To_Columns_Map({});
 	$class->Field_Handlers({});
 	$class->PrimaryFields([]);
 	$class->cdbi_bind_from_fields;
@@ -157,18 +164,25 @@ Additional (optional) arguments are given by $args hash refernce.
 sub cdbi_create {
 	my ($self, $args) = @_;
 	my $cargs = $self->_get_cdbi_pk_for_retrieve || {};
-	while (my ($field, $col) = each %{ $self->Fields_To_Columns_Map }) {
-		if ($col ne 'Primary' && !ref($col)) {
-			$cargs->{$col} = $self->$field;
-		}
-	}
-	while (my ($n, $v) = each %{ $args || {} }) {
-		$cargs->{$n} = $v;
-	}
+	$self->_update_fields($cargs, $args);
 	my $res = $self->CDBI_Class->create($cargs);
 	$self->class_dbi_object($res);
 	$self->_fill_in_from_class_dbi;
 	return $res;
+}
+
+sub _update_fields {
+	my ($self, $cdbi, $args) = @_;
+	my $fhs = $self->Field_Handlers;
+	my $setter = ref($cdbi) eq 'HASH' 
+		? sub { $cdbi->{ $_[0] } = $_[1]; }
+		: sub { my $c = shift; $cdbi->$c(shift()); };
+	while (my ($field, $h) = each %$fhs) {
+		$h->update_column($setter, $self->$field);
+	}
+	while (my ($n, $v) = each %{ $args || {} }) {
+		$setter->($n, $v);
+	}
 }
 
 =head2 $obj->cdbi_update($args)
@@ -182,13 +196,7 @@ sub cdbi_update {
 	my ($self, $args) = @_;
 	my $cdbi = $self->class_dbi_object || $self->_retrieve_cdbi_object
 			|| return;
-	my $fhs = $self->Field_Handlers;
-	while (my ($field, $h) = each %$fhs) {
-		$h->update_column($cdbi, $self->$field);
-	}
-	while (my ($n, $v) = each %{ $args || {} }) {
-		$cdbi->$n($v);
-	}
+	$self->_update_fields($cdbi, $args);
 	$cdbi->update;
 	$self->_fill_in_from_class_dbi;
 	return $cdbi;
@@ -226,39 +234,11 @@ Deletes database record using $obj fields.
 =cut
 sub cdbi_delete { shift()->cdbi_construct->delete; }
 
-my %_dt_fmts = (date => '%x', 'time' => '%X', timestamp => '%c');
-
-sub _info_and_datetime {
-	my ($class, $v) = @_;
-	my $i = $class->CDBI_Class->pg_column_info($v) or return ();
-	my ($t) = ($i->{type} =~ /^(\w+)/);
-	return ($i, $_dt_fmts{$t});
-}
-
-sub _setup_datetime_for_array {
-	my ($class, $w, $v) = @_;
-	for (my $i = 0; $i < @$v; $i++) {
-		next if $v->[$i] eq 'Primary';
-		my (undef, $dt_fmt) = $class->_info_and_datetime($v->[$i]);
-		next unless $dt_fmt;
-		my $iopts = $w->options->{$i} || {};
-		$w->setup_datetime_option($dt_fmt, $iopts);
-		$w->options->{$i} = $iopts;
-	}
-}
-
 sub _load_db_info {
 	my $class = shift;
-	while (my ($n, $v) = each %{ $class->Fields_To_Columns_Map }) {
-		next if $v eq 'Primary';
+	while (my ($n, $h) = each %{ $class->Field_Handlers }) {
 		my $w = $class->ht_find_widget($n);
-		if (ref($v) eq 'ARRAY') {
-			$class->_setup_datetime_for_array($w, $v);
-			next;
-		}
-		my ($i, $dt_fmt) = $class->_info_and_datetime($v);
-		$w->push_constraint([ 'defined', '' ]) unless $i->{is_nullable};
-		$w->setup_datetime_option($dt_fmt) if $dt_fmt;
+		$h->setup_type_info($class->CDBI_Class, $w);
 	}
 }
 

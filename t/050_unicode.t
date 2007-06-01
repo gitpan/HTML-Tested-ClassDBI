@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 13;
+use Test::More tests => 16;
 
 use Test::TempDatabase;
 use HTML::Tested qw(HTV);
@@ -77,6 +77,10 @@ $obj->cdbi_load;
 is($obj->class_dbi_object->t1, 'moo');
 is($obj->t1, 'moo');
 $obj->t1(undef);
+
+# readonly should not validate
+is_deeply([ $obj->ht_validate ], []);
+
 $obj->cdbi_update;
 is($obj->class_dbi_object->t1, 'moo');
 is($obj->t1, 'moo');
@@ -84,3 +88,10 @@ is($obj->t1, 'moo');
 $obj = H3->new({ id => 200 });
 $obj->cdbi_update;
 ok(1, "empty update is fine");
+
+$object->t1("foo");
+$object->cdbi_update;
+
+$object = HTC->new({ id => 1 });
+ok($object->cdbi_load);
+is($object->t1, 'foo');
