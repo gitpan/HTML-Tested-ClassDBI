@@ -9,7 +9,8 @@ HTML::Tested::ClassDBI - Enhances HTML::Tested to work with Class::DBI
   
   __PACKAGE__->ht_add_widget('HTML::Tested::Value'
 		  , id => cdbi_bind => "Primary");
-  __PACKAGE__->ht_add_widget('HTML::Tested::Value', x => cdbi_bind => "");
+  __PACKAGE__->ht_add_widget('HTML::Tested::Value'
+		  , x => cdbi_bind => "");
   __PACKAGE__->ht_add_widget('HTML::Tested::Value::Upload'
   	, x => cdbi_upload => "largeobjectoid");
   __PACKAGE__->bind_to_class_dbi('MyClassDBI');
@@ -46,7 +47,7 @@ __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('PrimaryFields');
 __PACKAGE__->mk_classdata('Field_Handlers');
 
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
@@ -77,27 +78,36 @@ the data.
 C<cdbi_readonly> boolean option can be used to make its widget readonly thus
 skipping its value during update. Read only widgets will not be validated.
 
+C<cdbi_primary> boolean option is used to make an unique column behave as
+primary key. C<cdbi_load> will use this field while retrieving the object from
+the database.
+
 =cut
 sub bind_to_class_dbi {
 	my ($class, $dbi_class) = @_;
 	$class->CDBI_Class($dbi_class);
 	$class->Field_Handlers({});
-	$class->PrimaryFields([]);
+	$class->PrimaryFields({});
 	$class->cdbi_bind_from_fields;
 	$class->_load_db_info;
 }
 
 sub _get_cdbi_pk_for_retrieve {
-	my ($self, $res) = @_;
-	$res ||= {};
+	my $self = shift;
+	my $res = {};
 
-	my @pc = $self->CDBI_Class->primary_columns;
-	my $pf = $self->PrimaryFields;
-	my ($pv) = grep { defined($_) } map { $self->$_ } @$pf;
+	my %pf = %{ $self->PrimaryFields };
+	my ($pv, $pc);
+	while (my ($k, $v) = each %pf) {
+		$pv = $self->$k;
+		next unless defined $pv;
+		$pc = $v;
+		last;
+	}
 	return undef unless defined($pv);
 	my @vals = split('_', $pv);
-	for (my $i = 0; $i < @pc; $i++) {
-		$res->{$pc[$i]} = $vals[$i];
+	for (my $i = 0; $i < @$pc; $i++) {
+		$res->{ $pc->[$i] } = $vals[$i];
 	}
 	return $res;
 }
@@ -125,7 +135,7 @@ sub _retrieve_cdbi_object {
 Loads Class::DBI object using primary key field - the widget with special
 C<cdbi_bind> => 'Primary'.
 
-This method populates the rest of the bound fields with the values of loaded
+This method populates the rest of the bound fields with values of the loaded
 Class::DBI object.
 
 =cut
@@ -232,7 +242,10 @@ sub cdbi_construct {
 Deletes database record using $obj fields.
 
 =cut
-sub cdbi_delete { shift()->cdbi_construct->delete; }
+sub cdbi_delete {
+	my $c = shift()->cdbi_construct;
+	$c->delete;
+}
 
 sub _load_db_info {
 	my $class = shift;

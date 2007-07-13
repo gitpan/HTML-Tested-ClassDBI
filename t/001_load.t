@@ -204,7 +204,7 @@ __PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
 $object = HTC3->new();
-is_deeply($object->PrimaryFields, [ 'ht_id' ]);
+is_deeply($object->PrimaryFields, { 'ht_id' => [ 'i1' ] });
 $object->ht_id(1);
 ok($object->cdbi_load);
 is($object->text1, 'a');
@@ -218,7 +218,7 @@ __PACKAGE__->bind_to_class_dbi('CDBI2');
 package main;
 
 $object = HTC4->new();
-is_deeply($object->PrimaryFields, [ 'ht_id' ]);
+is_deeply($object->PrimaryFields, { ht_id => [ 'id1', 'id2' ] });
 
 package HTC5;
 use base 'HTML::Tested::ClassDBI';
@@ -255,8 +255,7 @@ $c1->t2('b');
 $c1->update;
 
 $object = HTC6->new();
-is_deeply([ sort { $a cmp $b } @{ $object->PrimaryFields } ]
-		, [ 'ht_id', 'idl' ]);
+is_deeply($object->PrimaryFields, { ht_id => [ 'i1' ] , idl => [ 'i1' ] });
 $object->ht_id(1);
 ok($object->cdbi_load);
 is($object->t1, 'a');
@@ -280,7 +279,7 @@ __PACKAGE__->bind_to_class_dbi('CDBI');
 
 package main;
 $object = HTC7->new();
-is_deeply($object->PrimaryFields, [ 'ht_id' ]);
+is_deeply($object->PrimaryFields, { ht_id => [ 'i1' ] });
 $object->ht_id(1);
 
 $stash = {};
@@ -322,8 +321,8 @@ __PACKAGE__->bind_to_class_dbi('CDBI2');
 
 package main;
 
-is_deeply([ sort { $a cmp $b } @{ HTC10->PrimaryFields } ]
-		, [ 'c', 'hid' ]);
+is_deeply(HTC10->PrimaryFields, { c => [ 'id1', 'id2' ]
+		, hid => [ 'id1', 'id2' ] });
 
 my $htc10 = HTC10->new({ c => '12_14' });
 is($htc10->class_dbi_object, undef);

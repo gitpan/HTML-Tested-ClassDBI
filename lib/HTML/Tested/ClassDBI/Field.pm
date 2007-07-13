@@ -8,6 +8,8 @@ sub verify_arg {
 	my ($class, $root, $w, $arg) = @_;
 	confess($w->name . ": $arg - unknown column. Wrong cdbi_bind usage")
 		unless $root->CDBI_Class->find_column($arg);
+	$root->PrimaryFields->{ $w->name } = [ $arg ]
+		if $w->options->{cdbi_primary};
 }
 
 sub bless_arg {
@@ -48,7 +50,8 @@ use base 'HTML::Tested::ClassDBI::Field::Column';
 
 sub verify_arg {
 	my ($class, $root, $w, $arg) = @_;
-	push @{ $root->PrimaryFields }, $w->name;
+	my @pc = map { $_->name } $root->CDBI_Class->primary_columns;
+	$root->PrimaryFields->{ $w->name } = \@pc;
 	$root->ht_set_widget_option($w->name, "is_sealed", 1)
 		unless exists $w->options->{is_sealed};
 }
