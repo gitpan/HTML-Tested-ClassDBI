@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 79;
+use Test::More tests => 80;
 
 use Test::TempDatabase;
 use Carp;
@@ -156,6 +156,9 @@ is(@$htc2_arr, 1);
 is($htc2_arr->[0]->id, '12_14');
 
 $htc2 = HTC2->new;
+eval { $htc2->cdbi_construct; };
+like($@, qr/primary key/);
+
 $htc2->id('19_20');
 my $o = $htc2->cdbi_construct;
 isa_ok($o, 'CDBI2');

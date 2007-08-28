@@ -41,13 +41,14 @@ package HTML::Tested::ClassDBI;
 use base 'HTML::Tested';
 use Carp;
 use HTML::Tested::ClassDBI::Field;
+use Data::Dumper;
 
 __PACKAGE__->mk_accessors(qw(class_dbi_object));
 __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('PrimaryFields');
 __PACKAGE__->mk_classdata('Field_Handlers');
 
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
@@ -175,7 +176,9 @@ sub cdbi_create {
 	my ($self, $args) = @_;
 	my $cargs = $self->_get_cdbi_pk_for_retrieve || {};
 	$self->_update_fields($cargs, $args);
-	my $res = $self->CDBI_Class->create($cargs);
+	my $res;
+	eval { $res = $self->CDBI_Class->create($cargs); };
+	confess "SQL error: $@\n" . Dumper($self) if $@;
 	$self->class_dbi_object($res);
 	$self->_fill_in_from_class_dbi;
 	return $res;
@@ -207,7 +210,8 @@ sub cdbi_update {
 	my $cdbi = $self->class_dbi_object || $self->_retrieve_cdbi_object
 			|| return;
 	$self->_update_fields($cdbi, $args);
-	$cdbi->update;
+	eval { $cdbi->update; };
+	confess "SQL error: $@\n" . Dumper($self) if $@;
 	$self->_fill_in_from_class_dbi;
 	return $cdbi;
 }
@@ -233,8 +237,8 @@ Constructs underlying Class::DBI object using $obj fields.
 =cut
 sub cdbi_construct {
 	my $self = shift;
-	return $self->CDBI_Class->construct(
-			$self->_get_cdbi_pk_for_retrieve);
+	my $pk = $self->_get_cdbi_pk_for_retrieve or confess "No primary key";
+	return $self->CDBI_Class->construct($pk);
 }
 
 =head2 $obj->cdbi_delete

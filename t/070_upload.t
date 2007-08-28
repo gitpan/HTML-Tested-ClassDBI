@@ -1,7 +1,7 @@
 use strict;
 use warnings FATAL => 'all';
 
-use Test::More tests => 26;
+use Test::More tests => 40;
 use File::Temp qw(tempdir);
 use File::Slurp;
 use File::Spec;
@@ -171,3 +171,51 @@ $obj->cdbi_create_or_update;
 T->CDBI_Class->db_Main->commit;
 isnt($obj->class_dbi_object->v, undef);
 
+my $str = read_file('/bin/cat');
+T->CDBI_Class->db_Main->begin_work;
+my $loid = HTML::Tested::ClassDBI::Upload->import_lo_from_string(
+		T->CDBI_Class->db_Main, $str, 1);
+isnt($loid, undef) or exit 1;
+ok($dbh->func($loid, "$td/e", 'lo_export'));
+T->CDBI_Class->db_Main->commit;
+
+$res = read_file("$td/e");
+@sres = HTML::Tested::ClassDBI::Upload->strip_mime_header($res);
+is($sres[1], $str);
+is($sres[0], 'application/octet-stream');
+
+open(my $fh, '/bin/cat');
+T->CDBI_Class->db_Main->begin_work;
+$loid = HTML::Tested::ClassDBI::Upload->import_lo_object(
+		T->CDBI_Class->db_Main, $fh, 1);
+isnt($loid, undef) or exit 1;
+ok($dbh->func($loid, "$td/e", 'lo_export'));
+T->CDBI_Class->db_Main->commit;
+
+$res = read_file("$td/e");
+@sres = HTML::Tested::ClassDBI::Upload->strip_mime_header($res);
+is($sres[1], $str);
+is($sres[0], 'application/octet-stream');
+
+T->CDBI_Class->db_Main->begin_work;
+my ($lostr, $mime) = HTML::Tested::ClassDBI::Upload->export_lo_to_string(
+			T->CDBI_Class->db_Main, $loid);
+T->CDBI_Class->db_Main->commit;
+is($mime, $sres[0]) or exit 1;
+is(length $lostr, length $str);
+
+T->CDBI_Class->db_Main->begin_work;
+$loid = HTML::Tested::ClassDBI::Upload->import_lo_from_string(
+		T->CDBI_Class->db_Main, $str);
+isnt($loid, undef) or exit 1;
+($lostr, $mime) = HTML::Tested::ClassDBI::Upload->export_lo_to_string(
+			T->CDBI_Class->db_Main, $loid);
+T->CDBI_Class->db_Main->commit;
+is($mime, undef) or exit 1;
+is(length $lostr, length $str);
+
+eval {
+($lostr, $mime) = HTML::Tested::ClassDBI::Upload->export_lo_to_string(
+			T->CDBI_Class->db_Main, $loid);
+};
+like($@, qr/lo_open/);

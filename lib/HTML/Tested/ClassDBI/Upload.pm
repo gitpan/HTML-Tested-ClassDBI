@@ -33,17 +33,37 @@ sub _dbh_write {
 	confess "# short write $rlen > $wlen" if $rlen != $wlen;
 }
 
-sub import_lo_object {
-	my ($class, $dbh, $fh, $with_mime) = @_;
-	confess "No filehandle is given!" unless $fh;
+sub _open_lo {
+	my ($class, $dbh) = @_;
 	confess "We should be in transaction" if $dbh->{AutoCommit};
 	my $lo = $dbh->func($dbh->{pg_INV_WRITE}, 'lo_creat')
 			or confess "# Unable to lo_creat";
 	my $lo_fd = $dbh->func($lo, $dbh->{'pg_INV_WRITE'}, 'lo_open');
 	defined($lo_fd) or confess "# Unable to lo_open $lo";
+	return ($lo, $lo_fd);
+}
+
+sub import_lo_from_string {
+	my ($class, $dbh, $str, $with_mime) = @_;
+	confess "No string is given" unless $str;
+	if ($with_mime) {
+		my $mime = File::MMagic->new->checktype_contents($str)
+				or confess "No mime";
+		$str = "MIME: $mime\n$str";
+	}
+	my ($lo, $lo_fd) = $class->_open_lo($dbh);
+	_dbh_write($dbh, $lo_fd, $str, length $str);
+	$dbh->func($lo_fd, 'lo_close') or confess "Unable to close $lo";
+	return $lo;
+}
+
+sub import_lo_object {
+	my ($class, $dbh, $fh, $with_mime) = @_;
+	confess "No filehandle is given!" unless $fh;
 
 	my $mime = $class->_get_mime($fh) if ($with_mime);
 	my ($buf, $rlen, $wlen);
+	my ($lo, $lo_fd) = $class->_open_lo($dbh);
 	if ($mime) {
 		$buf = "MIME: $mime\n";
 		_dbh_write($dbh, $lo_fd, $buf, length $buf);
@@ -53,6 +73,21 @@ sub import_lo_object {
 	}
 	$dbh->func($lo_fd, 'lo_close') or confess "Unable to close $lo";
 	return $lo;
+}
+
+sub export_lo_to_string {
+	my ($class, $dbh, $loid) = @_;;
+        my $lo_fd = $dbh->func($loid, $dbh->{'pg_INV_READ'}, 'lo_open');
+        defined($lo_fd) or confess "# Unable to lo_open $loid";
+        my ($buf, $ct) = ('', '');
+        $dbh->func($lo_fd, $buf, 4096, 'lo_read');
+        ($ct, $buf) = HTML::Tested::ClassDBI::Upload->strip_mime_header($buf);
+        my $res = $buf;
+        while ($dbh->func($lo_fd, $buf, 4096, 'lo_read')) {
+                $res .= $buf;
+        }
+	$dbh->func($lo_fd, 'lo_close') or confess "Unable to close $loid";
+	return ($res, $ct);
 }
 
 sub update_column {
