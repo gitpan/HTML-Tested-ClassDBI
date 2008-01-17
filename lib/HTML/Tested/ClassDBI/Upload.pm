@@ -91,8 +91,8 @@ sub export_lo_to_string {
 }
 
 sub update_column {
-	my ($self, $setter, $val) = @_;
-	return unless $val;
+	my ($self, $setter, $root, $name) = @_;
+	my $val = $root->$name or return;
 	my $lo = $self->import_lo_object($self->[0]->db_Main, $val, $self->[2]);
 	$setter->($self->[1], $lo);
 }

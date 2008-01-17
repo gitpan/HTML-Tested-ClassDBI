@@ -48,7 +48,7 @@ write_file("$td/c.txt", "Hello\nworld\n");
 my $req = HTML::Tested::Test::Request->new;
 $req->add_upload(v => "$td/c.txt");
 
-my $obj = T->ht_convert_request_to_tree($req);
+my $obj = T->ht_load_from_params(map { ($_, $req->upload($_)) } $req->upload);
 is(ref($obj->v), 'GLOB');
 T->CDBI_Class->db_Main->begin_work;
 $obj->cdbi_create_or_update;
@@ -83,7 +83,7 @@ is_deeply([ HTML::Tested::Test->check_stash(ref($t2),
 $req = HTML::Tested::Test::Request->new;
 $req->add_upload(upo => "$td/c.txt");
 
-$obj = T2->ht_convert_request_to_tree($req);
+$obj = T2->ht_load_from_params(map { ($_, $req->upload($_)) } $req->upload);
 is(ref($obj->upo), 'GLOB');
 T->CDBI_Class->db_Main->begin_work;
 $obj->cdbi_create_or_update;
@@ -101,7 +101,7 @@ package main;
 $req = HTML::Tested::Test::Request->new;
 $req->add_upload(v => "$td/c.txt");
 
-$obj = T3->ht_convert_request_to_tree($req);
+$obj = T3->ht_load_from_params(map { ($_, $req->upload($_)) } $req->upload);
 is(ref($obj->v), 'GLOB');
 T->CDBI_Class->db_Main->begin_work;
 $obj->cdbi_create_or_update;
@@ -132,9 +132,11 @@ __PACKAGE__->bind_to_class_dbi('CDBI');
 package main;
 
 $req = HTML::Tested::Test::Request->new;
-$req->add_upload(upo => "/bin/true");
+my $tp = `which true`;
+chomp($tp);
+$req->add_upload(upo => $tp);
 
-$obj = T4->ht_convert_request_to_tree($req);
+$obj = T4->ht_load_from_params(map { ($_, $req->upload($_)) } $req->upload);
 is(ref($obj->upo), 'GLOB');
 
 T->CDBI_Class->db_Main->begin_work;
@@ -163,7 +165,7 @@ package main;
 $req = HTML::Tested::Test::Request->new;
 $req->add_upload(up2 => "$td/c.txt");
 
-$obj = T5->ht_convert_request_to_tree($req);
+$obj = T5->ht_load_from_params(map { ($_, $req->upload($_)) } $req->upload);
 is(ref($obj->up2), 'GLOB');
 
 T->CDBI_Class->db_Main->begin_work;
@@ -218,4 +220,4 @@ eval {
 ($lostr, $mime) = HTML::Tested::ClassDBI::Upload->export_lo_to_string(
 			T->CDBI_Class->db_Main, $loid);
 };
-like($@, qr/lo_open/);
+isnt($@, '');

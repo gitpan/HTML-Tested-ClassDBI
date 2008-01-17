@@ -47,8 +47,9 @@ __PACKAGE__->mk_accessors(qw(class_dbi_object));
 __PACKAGE__->mk_classdata('CDBI_Class');
 __PACKAGE__->mk_classdata('PrimaryFields');
 __PACKAGE__->mk_classdata('Field_Handlers');
+__PACKAGE__->mk_classdata('PrimaryKey');
 
-our $VERSION = '0.14';
+our $VERSION = '0.15';
 
 sub cdbi_bind_from_fields {
 	my $class = shift;
@@ -85,18 +86,35 @@ the database.
 
 =cut
 sub bind_to_class_dbi {
-	my ($class, $dbi_class) = @_;
+	my ($class, $dbi_class, $opts) = @_;
 	$class->CDBI_Class($dbi_class);
 	$class->Field_Handlers({});
 	$class->PrimaryFields({});
 	$class->cdbi_bind_from_fields;
 	$class->_load_db_info;
+
+	my $pk = $opts ? $opts->{PrimaryKey} : undef;
+	$class->PrimaryKey($pk) if $pk;
+	confess "# No Primary fields given\n"
+		unless ($pk || %{ $class->PrimaryFields });
 }
 
 sub _get_cdbi_pk_for_retrieve {
 	my $self = shift;
-	my $res = {};
+	my $pk = $self->PrimaryKey or goto PFIELDS;
 
+	my %pkh;
+	for my $f (@$pk) {
+		my $v = $self->$f;
+		goto PFIELDS unless defined($v);
+
+		my $h = $self->Field_Handlers->{$f};
+		$pkh{ $h ? $h->column_name : $f } = $v;
+	}
+	return \%pkh if %pkh;
+
+PFIELDS:
+	my $res = {};
 	my %pf = %{ $self->PrimaryFields };
 	my ($pv, $pc);
 	while (my ($k, $v) = each %pf) {
@@ -122,7 +140,7 @@ sub _fill_in_from_class_dbi {
 	}
 }
 
-sub _retrieve_cdbi_object {
+sub cdbi_retrieve {
 	my $self = shift;
 	my $pk = $self->_get_cdbi_pk_for_retrieve;
 	return unless defined($pk);
@@ -139,10 +157,12 @@ C<cdbi_bind> => 'Primary'.
 This method populates the rest of the bound fields with values of the loaded
 Class::DBI object.
 
+Returns retrieved Class::DBI object or undef.
+
 =cut
 sub cdbi_load {
 	my $self = shift;
-	my $cdbi = $self->_retrieve_cdbi_object or return;
+	my $cdbi = $self->cdbi_retrieve or return;
 	$self->_fill_in_from_class_dbi;
 	return $cdbi;
 }
@@ -175,7 +195,7 @@ Additional (optional) arguments are given by $args hash refernce.
 sub cdbi_create {
 	my ($self, $args) = @_;
 	my $cargs = $self->_get_cdbi_pk_for_retrieve || {};
-	$self->_update_fields($cargs, $args);
+	$self->_update_fields(sub { $cargs->{ $_[0] } = $_[1]; }, $args);
 	my $res;
 	eval { $res = $self->CDBI_Class->create($cargs); };
 	confess "SQL error: $@\n" . Dumper($self) if $@;
@@ -185,13 +205,10 @@ sub cdbi_create {
 }
 
 sub _update_fields {
-	my ($self, $cdbi, $args) = @_;
+	my ($self, $setter, $args) = @_;
 	my $fhs = $self->Field_Handlers;
-	my $setter = ref($cdbi) eq 'HASH' 
-		? sub { $cdbi->{ $_[0] } = $_[1]; }
-		: sub { my $c = shift; $cdbi->$c(shift()); };
 	while (my ($field, $h) = each %$fhs) {
-		$h->update_column($setter, $self->$field);
+		$h->update_column($setter, $self, $field);
 	}
 	while (my ($n, $v) = each %{ $args || {} }) {
 		$setter->($n, $v);
@@ -207,9 +224,13 @@ Additional (optional) arguments are given by $args hash refernce.
 =cut
 sub cdbi_update {
 	my ($self, $args) = @_;
-	my $cdbi = $self->class_dbi_object || $self->_retrieve_cdbi_object
-			|| return;
-	$self->_update_fields($cdbi, $args);
+	my $cdbi = $self->class_dbi_object || $self->cdbi_retrieve
+			|| confess("# Nothing found to update");
+	$self->_update_fields(sub {
+		my ($c, $val) = @_;
+		no warnings 'uninitialized';
+		$cdbi->$c($val) if $cdbi->$c ne $val;
+	}, $args);
 	eval { $cdbi->update; };
 	confess "SQL error: $@\n" . Dumper($self) if $@;
 	$self->_fill_in_from_class_dbi;
@@ -226,7 +247,7 @@ Additional (optional) arguments are given by $args hash refernce.
 =cut
 sub cdbi_create_or_update {
 	my ($self, $args) = @_;
-	return ($self->class_dbi_object || $self->_retrieve_cdbi_object)
+	return ($self->class_dbi_object || $self->cdbi_retrieve)
 		? $self->cdbi_update($args) : $self->cdbi_create($args);
 }
 

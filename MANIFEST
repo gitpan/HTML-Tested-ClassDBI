@@ -5,6 +5,7 @@ Makefile.PL
 lib/HTML/Tested/ClassDBI/Upload.pm
 lib/HTML/Tested/ClassDBI/Field.pm
 lib/HTML/Tested/ClassDBI.pm
+t/090_multi_pk.t
 t/080_primary.t
 t/001_load.t
 t/030_datetime.t

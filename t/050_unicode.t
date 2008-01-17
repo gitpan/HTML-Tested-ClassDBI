@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 16;
+use Test::More tests => 17;
 
 use Test::TempDatabase;
 use HTML::Tested qw(HTV);
@@ -86,11 +86,12 @@ is($obj->class_dbi_object->t1, 'moo');
 is($obj->t1, 'moo');
 
 $obj = H3->new({ id => 200 });
-$obj->cdbi_update;
-ok(1, "empty update is fine");
+eval { $obj->cdbi_update; };
+like($@, qr/Nothing/);
 
 $object->t1("foo");
 $object->cdbi_update;
+ok(1, "object has nothing to do with obj. Here we are ok");
 
 $object = HTC->new({ id => 1 });
 ok($object->cdbi_load);

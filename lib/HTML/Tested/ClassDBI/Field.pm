@@ -15,18 +15,21 @@ sub verify_arg {
 sub bless_arg {
 	my ($class, $root, $w, $arg) = @_;
 	$class->verify_arg($root, $w, $arg);
-	return bless([ $arg, $w->options->{cdbi_readonly} ], $class);
+	return bless([ $arg ], $class);
 }
 
 sub get_column_value {
 	my ($self, $cdbi) = @_;
-	my $c = $self->[0];
+	my $c = $self->column_name;
 	return $cdbi->$c;
 }
 
+sub column_name { return shift()->[0]; }
+
 sub update_column {
-	my ($self, $setter, $val) = @_;
-	$setter->($self->[0], $val) unless $self->[1];
+	my ($self, $setter, $root, $name) = @_;
+	$setter->($self->[0], $root->$name) unless $root->ht_get_widget_option(
+		$name, "cdbi_readonly");
 }
 
 my %_dt_fmts = (date => '%x', 'time' => '%X', timestamp => '%c');

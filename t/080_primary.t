@@ -94,7 +94,7 @@ is($h2->ht_get_widget_option(id => 'cdbi_column_info')->{type}, "integer");
 package HTC4;
 use base 'HTML::Tested::ClassDBI';
 __PACKAGE__->ht_add_widget(::HTV."::Link", 'l', caption => "L"
-	, href_format => '../l?id=%s', cdbi_bind => [ 'id' ]);
+	, href_format => '../l?id=%s', cdbi_bind => [ 'Primary' ]);
 __PACKAGE__->bind_to_class_dbi('T1');
 
 package main;

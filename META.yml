@@ -1,14 +1,14 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         HTML-Tested-ClassDBI
-version:      0.14
+version:      0.15
 version_from: lib/HTML/Tested/ClassDBI.pm
 installdirs:  site
 requires:
-    Class::DBI::Pg::More:          0.02
+    Class::DBI::Pg::More:          0.03
     File::MMagic:                  
-    HTML::Tested:                  0.22
-    Test::TempDatabase:            0.1
+    HTML::Tested:                  0.31
+    Test::TempDatabase:            0.12
 
 distribution_type: module
 generated_by: ExtUtils::MakeMaker version 6.30_01
