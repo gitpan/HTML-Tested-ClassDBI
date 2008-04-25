@@ -43,21 +43,36 @@ use Carp;
 use HTML::Tested::ClassDBI::Field;
 use Data::Dumper;
 
-__PACKAGE__->mk_accessors(qw(class_dbi_object));
-__PACKAGE__->mk_classdata('CDBI_Class');
-__PACKAGE__->mk_classdata('PrimaryFields');
-__PACKAGE__->mk_classdata('Field_Handlers');
-__PACKAGE__->mk_classdata('PrimaryKey');
+my @_cdata = qw(_CDBI_Class _PrimaryFields _Field_Handlers _PrimaryKey);
+__PACKAGE__->mk_classdata($_) for @_cdata;
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
+
+sub class_dbi_object { shift()->class_dbi_object_gr('_CDBIM_', @_); }
+
+sub class_dbi_object_gr {
+	my ($self, $gr, $val) = @_;
+	return $self->{_class_dbi_objects}->{$gr} if @_ == 2;
+	$self->{_class_dbi_objects}->{$gr} = $val;
+}
 
 sub cdbi_bind_from_fields {
-	my $class = shift;
+	my ($class, $gr) = @_;
 	for my $v (@{ $class->Widgets_List }) {
-		my $f = HTML::Tested::ClassDBI::Field->new($class, $v) or next;
-		$class->Field_Handlers->{$v->name} = $f;
+		my $wgr = $v->options->{cdbi_group} || '_CDBIM_';
+		$v->options->{cdbi_group} = $wgr;
+		next unless $wgr eq $gr;
+		my $f = HTML::Tested::ClassDBI::Field->new($class, $v, $gr)
+				or next;
+		$class->_Field_Handlers->{ $v->options->{cdbi_group} }
+			->{$v->name} = $f;
 	}
 }
+
+sub CDBI_Class { return shift()->_CDBI_Class->{_CDBIM_} }
+sub PrimaryFields { return shift()->_PrimaryFields->{_CDBIM_} }
+sub Field_Handlers { return shift()->_Field_Handlers->{_CDBIM_} }
+sub PrimaryKey { return shift()->_PrimaryKey->{_CDBIM_} }
 
 =head1 METHODS
 
@@ -85,37 +100,45 @@ primary key. C<cdbi_load> will use this field while retrieving the object from
 the database.
 
 =cut
-sub bind_to_class_dbi {
-	my ($class, $dbi_class, $opts) = @_;
-	$class->CDBI_Class($dbi_class);
-	$class->Field_Handlers({});
-	$class->PrimaryFields({});
-	$class->cdbi_bind_from_fields;
-	$class->_load_db_info;
+sub bind_to_class_dbi { shift()->bind_to_class_dbi_gr('_CDBIM_', @_); }
+
+=head2 $class->bind_to_class_dbi_gr($group, $cdbi_class)
+
+Binds $class to $cdbi class in group $group.
+
+=cut
+sub bind_to_class_dbi_gr {
+	my ($class, $gr, $dbi_class, $opts) = @_;
+	$class->$_({}) for grep { !$class->$_ } @_cdata;
+	$class->_CDBI_Class->{$gr} = $dbi_class;
+	$class->_Field_Handlers->{$gr} = {};
+	$class->_PrimaryFields->{$gr} = {};
+	$class->cdbi_bind_from_fields($gr);
+	$class->_load_db_info($gr);
 
 	my $pk = $opts ? $opts->{PrimaryKey} : undef;
-	$class->PrimaryKey($pk) if $pk;
+	$class->_PrimaryKey->{$gr} = $pk if $pk;
 	confess "# No Primary fields given\n"
-		unless ($pk || %{ $class->PrimaryFields });
+		unless ($pk || %{ $class->_PrimaryFields->{$gr} });
 }
 
 sub _get_cdbi_pk_for_retrieve {
-	my $self = shift;
-	my $pk = $self->PrimaryKey or goto PFIELDS;
+	my ($self, $gr) = @_;
+	my $pk = $self->_PrimaryKey->{$gr} or goto PFIELDS;
 
 	my %pkh;
 	for my $f (@$pk) {
 		my $v = $self->$f;
 		goto PFIELDS unless defined($v);
 
-		my $h = $self->Field_Handlers->{$f};
+		my $h = $self->_Field_Handlers->{$gr}->{$f};
 		$pkh{ $h ? $h->column_name : $f } = $v;
 	}
 	return \%pkh if %pkh;
 
 PFIELDS:
 	my $res = {};
-	my %pf = %{ $self->PrimaryFields };
+	my %pf = %{ $self->_PrimaryFields->{$gr} };
 	my ($pv, $pc);
 	while (my ($k, $v) = each %pf) {
 		$pv = $self->$k;
@@ -132,20 +155,22 @@ PFIELDS:
 }
 
 sub _fill_in_from_class_dbi {
-	my $self = shift;
-	my $fhs = $self->Field_Handlers;
-	my $cdbi = $self->class_dbi_object;
+	my ($self, $gr) = @_;
+	my $fhs = $self->_Field_Handlers->{$gr};
+	my $cdbi = $self->class_dbi_object_gr($gr);
 	while (my ($f, $h) = each %$fhs) {
 		$self->$f($h->get_column_value($cdbi));
 	}
 }
 
-sub cdbi_retrieve {
-	my $self = shift;
-	my $pk = $self->_get_cdbi_pk_for_retrieve;
+sub cdbi_retrieve { shift()->_call_for_all('cdbi_retrieve_gr', @_); }
+
+sub cdbi_retrieve_gr {
+	my ($self, $gr) = @_;
+	my $pk = $self->_get_cdbi_pk_for_retrieve($gr);
 	return unless defined($pk);
-	my $cdbi = $self->CDBI_Class->retrieve(ref($pk) ? %$pk : $pk);
-	$self->class_dbi_object($cdbi);
+	my $cdbi = $self->_CDBI_Class->{$gr}->retrieve(ref($pk) ? %$pk : $pk);
+	$self->class_dbi_object_gr($gr, $cdbi);
 	return $cdbi;
 }
 
@@ -160,10 +185,17 @@ Class::DBI object.
 Returns retrieved Class::DBI object or undef.
 
 =cut
-sub cdbi_load {
-	my $self = shift;
-	my $cdbi = $self->cdbi_retrieve or return;
-	$self->_fill_in_from_class_dbi;
+sub cdbi_load { return shift()->_call_for_all('cdbi_load_gr', @_); }
+
+sub _get_cdbi_object {
+	my ($self, $gr) = @_;
+	return $self->class_dbi_object_gr($gr) || $self->cdbi_retrieve_gr($gr);
+}
+
+sub cdbi_load_gr {
+	my ($self, $gr) = @_;
+	my $cdbi = $self->_get_cdbi_object($gr) or return;
+	$self->_fill_in_from_class_dbi($gr);
 	return $cdbi;
 }
 
@@ -179,10 +211,17 @@ sub query_class_dbi {
 	my ($class, $func, @params) = @_;
 	my @cdbis = $class->CDBI_Class->$func(@params);
 	return [ map { 
-		my $c = $class->new({ class_dbi_object => $_ });
-		$c->_fill_in_from_class_dbi; 
+		my $c = $class->new;
+		$c->class_dbi_object($_);
+		$c->_fill_in_from_class_dbi('_CDBIM_'); 
 		$c;
 	} @cdbis ];
+}
+
+sub _call_for_all {
+	my ($self, $func, @args) = @_;
+	$self->$func($_, @args) for keys %{ $self->_CDBI_Class };
+	return $self->class_dbi_object;
 }
 
 =head2 $obj->cdbi_create($args)
@@ -192,22 +231,28 @@ Creates new database record using $obj fields.
 Additional (optional) arguments are given by $args hash refernce.
 
 =cut
-sub cdbi_create {
-	my ($self, $args) = @_;
-	my $cargs = $self->_get_cdbi_pk_for_retrieve || {};
-	$self->_update_fields(sub { $cargs->{ $_[0] } = $_[1]; }, $args);
+sub cdbi_create { return shift()->_call_for_all('cdbi_create_gr', @_); }
+
+=head2 $class->cdbi_create_gr($group, $args)
+
+Creates new database record using $obj fields in group $group.
+
+=cut
+sub cdbi_create_gr {
+	my ($self, $gr, $args) = @_;
+	my $cargs = $self->_get_cdbi_pk_for_retrieve($gr) || {};
+	$self->_update_fields($gr, sub { $cargs->{ $_[0] } = $_[1]; }, $args);
 	my $res;
-	eval { $res = $self->CDBI_Class->create($cargs); };
+	eval { $res = $self->_CDBI_Class->{$gr}->create($cargs); };
 	confess "SQL error: $@\n" . Dumper($self) if $@;
-	$self->class_dbi_object($res);
-	$self->_fill_in_from_class_dbi;
+	$self->class_dbi_object_gr($gr, $res);
+	$self->_fill_in_from_class_dbi($gr);
 	return $res;
 }
 
 sub _update_fields {
-	my ($self, $setter, $args) = @_;
-	my $fhs = $self->Field_Handlers;
-	while (my ($field, $h) = each %$fhs) {
+	my ($self, $gr, $setter, $args) = @_;
+	while (my ($field, $h) = each %{ $self->_Field_Handlers->{$gr} }) {
 		$h->update_column($setter, $self, $field);
 	}
 	while (my ($n, $v) = each %{ $args || {} }) {
@@ -222,18 +267,20 @@ Updates database records using $obj fields.
 Additional (optional) arguments are given by $args hash refernce.
 
 =cut
-sub cdbi_update {
-	my ($self, $args) = @_;
-	my $cdbi = $self->class_dbi_object || $self->cdbi_retrieve
-			|| confess("# Nothing found to update");
-	$self->_update_fields(sub {
+sub cdbi_update { return shift()->_call_for_all('cdbi_update_gr', @_); }
+
+sub cdbi_update_gr {
+	my ($self, $gr, $args) = @_;
+	my $cdbi = $self->_get_cdbi_object($gr)
+			or confess("# Nothing found to update");
+	$self->_update_fields($gr, sub {
 		my ($c, $val) = @_;
 		no warnings 'uninitialized';
 		$cdbi->$c($val) if $cdbi->$c ne $val;
 	}, $args);
 	eval { $cdbi->update; };
 	confess "SQL error: $@\n" . Dumper($self) if $@;
-	$self->_fill_in_from_class_dbi;
+	$self->_fill_in_from_class_dbi($gr);
 	return $cdbi;
 }
 
@@ -246,9 +293,13 @@ Additional (optional) arguments are given by $args hash refernce.
 
 =cut
 sub cdbi_create_or_update {
-	my ($self, $args) = @_;
-	return ($self->class_dbi_object || $self->cdbi_retrieve)
-		? $self->cdbi_update($args) : $self->cdbi_create($args);
+	return shift()->_call_for_all('cdbi_create_or_update_gr', @_);
+}
+
+sub cdbi_create_or_update_gr {
+	my ($self, $gr, $args) = @_;
+	return $self->_get_cdbi_object($gr) ? $self->cdbi_update_gr($gr, $args)
+					: $self->cdbi_create_gr($gr, $args);
 }
 
 =head2 $obj->cdbi_construct
@@ -256,10 +307,13 @@ sub cdbi_create_or_update {
 Constructs underlying Class::DBI object using $obj fields.
 
 =cut
-sub cdbi_construct {
-	my $self = shift;
-	my $pk = $self->_get_cdbi_pk_for_retrieve or confess "No primary key";
-	return $self->CDBI_Class->construct($pk);
+sub cdbi_construct { return shift()->cdbi_construct_gr('_CDBIM_'); }
+
+sub cdbi_construct_gr {
+	my ($self, $gr) = @_;
+	my $pk = $self->_get_cdbi_pk_for_retrieve($gr)
+			or confess "No primary key for $gr";
+	return $self->_CDBI_Class->{$gr}->construct($pk);
 }
 
 =head2 $obj->cdbi_delete
@@ -267,16 +321,18 @@ sub cdbi_construct {
 Deletes database record using $obj fields.
 
 =cut
-sub cdbi_delete {
-	my $c = shift()->cdbi_construct;
+sub cdbi_delete { shift()->cdbi_delete_gr('_CDBIM_', @_); }
+
+sub cdbi_delete_gr {
+	my $c = shift()->cdbi_construct_gr(shift());
 	$c->delete;
 }
 
 sub _load_db_info {
-	my $class = shift;
-	while (my ($n, $h) = each %{ $class->Field_Handlers }) {
+	my ($class, $gr) = @_;
+	while (my ($n, $h) = each %{ $class->_Field_Handlers->{$gr} }) {
 		my $w = $class->ht_find_widget($n);
-		$h->setup_type_info($class->CDBI_Class, $w);
+		$h->setup_type_info($class->_CDBI_Class->{$gr}, $w);
 	}
 }
 

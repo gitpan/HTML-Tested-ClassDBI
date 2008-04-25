@@ -6,9 +6,10 @@ use Carp;
 
 sub verify_arg {
 	my ($class, $root, $w, $arg) = @_;
+	my $gr = $w->options->{cdbi_group};
 	confess($w->name . ": $arg - unknown column. Wrong cdbi_bind usage")
-		unless $root->CDBI_Class->find_column($arg);
-	$root->PrimaryFields->{ $w->name } = [ $arg ]
+		unless $root->_CDBI_Class->{$gr}->find_column($arg);
+	$root->_PrimaryFields->{$gr}->{ $w->name } = [ $arg ]
 		if $w->options->{cdbi_primary};
 }
 
@@ -55,8 +56,10 @@ use base 'HTML::Tested::ClassDBI::Field::Column';
 
 sub verify_arg {
 	my ($class, $root, $w, $arg) = @_;
-	my @pc = map { $_->name } $root->CDBI_Class->primary_columns;
-	$root->PrimaryFields->{ $w->name } = \@pc;
+	my @pc = map { $_->name } $root->_CDBI_Class->{
+			$w->options->{cdbi_group} }->primary_columns;
+	$root->_PrimaryFields->{ $w->options->{cdbi_group} }
+		->{ $w->name } = \@pc;
 	$root->ht_set_widget_option($w->name, "is_sealed", 1)
 		unless exists $w->options->{is_sealed};
 	$root->ht_set_widget_option($w->name, "cdbi_readonly", 1)

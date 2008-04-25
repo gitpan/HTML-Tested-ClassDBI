@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 80;
+use Test::More tests => 81;
 
 use Test::TempDatabase;
 use Carp;
@@ -16,6 +16,8 @@ use HTML::Tested::Value::CheckBox;
 use HTML::Tested::Value::Marked;
 
 BEGIN { use_ok('HTML::Tested::ClassDBI'); }
+
+# $SIG{__DIE__} = sub { diag(Carp::longmess(@_)); };
 
 HTML::Tested::Seal->instance('boo boo boo');
 
@@ -336,3 +338,6 @@ $htc10 = HTC10->new({ hid => '12_14' });
 is($htc10->class_dbi_object, undef);
 $htc10->cdbi_load;
 isa_ok($htc10->class_dbi_object, 'CDBI2');
+
+$htc10->class_dbi_object('dd');
+is($htc10->class_dbi_object, 'dd');

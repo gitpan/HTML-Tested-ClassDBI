@@ -20,6 +20,7 @@ $dbh->do('SET client_min_messages TO error');
 $dbh->do("CREATE TABLE table1 (id serial primary key
 		, t1 text not null, t2 text not null unique)");
 
+# $SIG{__DIE__} = sub { diag(Carp::longmess(@_)); };
 package CDBI_Base;
 use base 'Class::DBI::Pg::More';
 
