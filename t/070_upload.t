@@ -1,7 +1,7 @@
 use strict;
 use warnings FATAL => 'all';
 
-use Test::More tests => 40;
+use Test::More tests => 45;
 use File::Temp qw(tempdir);
 use File::Slurp;
 use File::Spec;
@@ -221,3 +221,25 @@ eval {
 			T->CDBI_Class->db_Main, $loid);
 };
 isnt($@, '');
+
+T->CDBI_Class->db_Main->begin_work;
+my $loid2 = HTML::Tested::ClassDBI::Upload->import_lo_from_string(
+		T->CDBI_Class->db_Main, [ "AA$str", $loid ]);
+T->CDBI_Class->db_Main->commit;
+is($loid2, $loid);
+
+T->CDBI_Class->db_Main->begin_work;
+($lostr, $mime) = HTML::Tested::ClassDBI::Upload->export_lo_to_string(
+			T->CDBI_Class->db_Main, $loid2);
+T->CDBI_Class->db_Main->commit;
+is(length $lostr, length($str) + 2);
+
+open($fh, '/bin/sh');
+T->CDBI_Class->db_Main->begin_work;
+my $loid3 = HTML::Tested::ClassDBI::Upload->import_lo_object(
+		T->CDBI_Class->db_Main, [ $fh, $loid2 ], 1);
+is($loid3, $loid2);
+ok($dbh->func($loid, "$td/e2", 'lo_export'));
+T->CDBI_Class->db_Main->commit;
+isnt(-s "$td/e2", "$td/e");
+

@@ -46,7 +46,7 @@ use Data::Dumper;
 my @_cdata = qw(_CDBI_Class _PrimaryFields _Field_Handlers _PrimaryKey);
 __PACKAGE__->mk_classdata($_) for @_cdata;
 
-our $VERSION = '0.16';
+our $VERSION = '0.17';
 
 sub class_dbi_object { shift()->class_dbi_object_gr('_CDBIM_', @_); }
 

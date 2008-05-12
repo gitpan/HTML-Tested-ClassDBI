@@ -9,8 +9,8 @@ WriteMakefile(
     AUTHOR       => 'Boris Sukholitko (boriss@gmail.com)',
     ABSTRACT     => 'Enhances HTML::Tested to work with Class::DBI classes',
     PREREQ_PM    => {
-                     'Test::TempDatabase' => '0.12',
-		     'Class::DBI::Pg::More' => '0.03',
-		     'HTML::Tested' => '0.31', 'File::MMagic' => ''
+                     'Test::TempDatabase' => '0.13',
+		     'Class::DBI::Pg::More' => '0.04',
+		     'HTML::Tested' => '0.35', 'File::MMagic' => ''
                     },
 );

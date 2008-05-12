@@ -34,41 +34,52 @@ sub _dbh_write {
 }
 
 sub _open_lo {
-	my ($class, $dbh) = @_;
+	my ($class, $dbh, $lo) = @_;
 	confess "We should be in transaction" if $dbh->{AutoCommit};
-	my $lo = $dbh->func($dbh->{pg_INV_WRITE}, 'lo_creat')
+	if ($lo) {
+		$dbh->func($lo, 'lo_unlink') or confess "error: lo_unlink $lo";
+		$dbh->do("select lo_create(?)", undef, $lo);
+	} else {
+		$lo = $dbh->func($dbh->{pg_INV_WRITE}, 'lo_creat')
 			or confess "# Unable to lo_creat";
+	}
 	my $lo_fd = $dbh->func($lo, $dbh->{'pg_INV_WRITE'}, 'lo_open');
 	defined($lo_fd) or confess "# Unable to lo_open $lo";
 	return ($lo, $lo_fd);
 }
 
+sub _parse_arg {
+	my ($class, $arg, $msg) = @_;
+	my ($a, $loid) = ref($arg) && ref($arg) eq 'ARRAY' ? @$arg : ($arg);
+	confess "No $msg is given" unless $a;
+	return ($a, $loid);
+}
+
 sub import_lo_from_string {
-	my ($class, $dbh, $str, $with_mime) = @_;
-	confess "No string is given" unless $str;
+	my ($class, $dbh, $stra, $with_mime) = @_;
+	my ($str, $loid) = $class->_parse_arg($stra, "string");
 	if ($with_mime) {
 		my $mime = File::MMagic->new->checktype_contents($str)
 				or confess "No mime";
 		$str = "MIME: $mime\n$str";
 	}
-	my ($lo, $lo_fd) = $class->_open_lo($dbh);
+	my ($lo, $lo_fd) = $class->_open_lo($dbh, $loid);
 	_dbh_write($dbh, $lo_fd, $str, length $str);
 	$dbh->func($lo_fd, 'lo_close') or confess "Unable to close $lo";
 	return $lo;
 }
 
 sub import_lo_object {
-	my ($class, $dbh, $fh, $with_mime) = @_;
-	confess "No filehandle is given!" unless $fh;
-
+	my ($class, $dbh, $fha, $with_mime) = @_;
+	my ($fh, $loid) = $class->_parse_arg($fha, "filehandle");
 	my $mime = $class->_get_mime($fh) if ($with_mime);
 	my ($buf, $rlen, $wlen);
-	my ($lo, $lo_fd) = $class->_open_lo($dbh);
+	my ($lo, $lo_fd) = $class->_open_lo($dbh, $loid);
 	if ($mime) {
 		$buf = "MIME: $mime\n";
 		_dbh_write($dbh, $lo_fd, $buf, length $buf);
 	}
-	while (($rlen = sysread($fh, $buf, 4096))) {
+	while (($rlen = sysread($fh, $buf, 4096 * 16))) {
 		_dbh_write($dbh, $lo_fd, $buf, $rlen);
 	}
 	$dbh->func($lo_fd, 'lo_close') or confess "Unable to close $lo";
