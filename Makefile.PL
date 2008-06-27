@@ -11,6 +11,6 @@ WriteMakefile(
     PREREQ_PM    => {
                      'Test::TempDatabase' => '0.13',
 		     'Class::DBI::Pg::More' => '0.04',
-		     'HTML::Tested' => '0.35', 'File::MMagic' => ''
+		     'HTML::Tested' => '0.38', 'File::MMagic' => ''
                     },
 );

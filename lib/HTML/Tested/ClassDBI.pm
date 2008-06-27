@@ -46,7 +46,7 @@ use Data::Dumper;
 my @_cdata = qw(_CDBI_Class _PrimaryFields _Field_Handlers _PrimaryKey);
 __PACKAGE__->mk_classdata($_) for @_cdata;
 
-our $VERSION = '0.17';
+our $VERSION = '0.18';
 
 sub class_dbi_object { shift()->class_dbi_object_gr('_CDBIM_', @_); }
 
@@ -253,7 +253,8 @@ sub cdbi_create_gr {
 sub _update_fields {
 	my ($self, $gr, $setter, $args) = @_;
 	while (my ($field, $h) = each %{ $self->_Field_Handlers->{$gr} }) {
-		$h->update_column($setter, $self, $field);
+		$h->update_column($setter, $self, $field)
+			if exists $self->{$field};
 	}
 	while (my ($n, $v) = each %{ $args || {} }) {
 		$setter->($n, $v);

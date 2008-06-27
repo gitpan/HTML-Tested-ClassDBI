@@ -1,7 +1,7 @@
 use strict;
 use warnings FATAL => 'all';
 
-use Test::More tests => 18;
+use Test::More tests => 20;
 use Test::TempDatabase;
 use HTML::Tested qw(HTV);
 use HTML::Tested::Value;
@@ -111,3 +111,18 @@ $obj3->cdbi_update;
 $obj3 = HT3->new({ b => "2", a => "3" });
 $obj3->cdbi_load;
 is($obj3->c, "8");
+
+package HT4;
+use base 'HTML::Tested::ClassDBI';
+__PACKAGE__->ht_add_widget(::HTV, $_ => cdbi_bind => "") for qw(a b c d);
+__PACKAGE__->bind_to_class_dbi('T1', { PrimaryKey => [ qw(a b) ] });
+
+package main;
+
+my $obj4 = HT4->new({ b => "2", a => "3", d => "dd" });
+$obj4->cdbi_update;
+
+$obj4 = HT4->new({ b => "2", a => "3" });
+$obj4->cdbi_load;
+is($obj4->c, "8");
+is($obj4->d, "dd");
