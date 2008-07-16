@@ -46,7 +46,7 @@ use Data::Dumper;
 my @_cdata = qw(_CDBI_Class _PrimaryFields _Field_Handlers _PrimaryKey);
 __PACKAGE__->mk_classdata($_) for @_cdata;
 
-our $VERSION = '0.18';
+our $VERSION = '0.19';
 
 sub class_dbi_object { shift()->class_dbi_object_gr('_CDBIM_', @_); }
 
@@ -256,8 +256,9 @@ sub _update_fields {
 		$h->update_column($setter, $self, $field)
 			if exists $self->{$field};
 	}
+	my $cdbi = $self->_CDBI_Class->{$gr};
 	while (my ($n, $v) = each %{ $args || {} }) {
-		$setter->($n, $v);
+		$setter->($n, $v) if $cdbi->can($n);
 	}
 }
 
@@ -334,6 +335,20 @@ sub _load_db_info {
 	while (my ($n, $h) = each %{ $class->_Field_Handlers->{$gr} }) {
 		my $w = $class->ht_find_widget($n);
 		$h->setup_type_info($class->_CDBI_Class->{$gr}, $w);
+	}
+}
+
+sub cdbi_set_many {
+	my ($class, $h_objs, $c_objs) = @_;
+	my @pcs = $class->CDBI_Class->primary_columns;
+	my %c_objs;
+	for my $co (@$c_objs) {
+		$c_objs{ join('_', map { $co->$_ } @pcs) } = $co;
+	}
+	for my $ho (@$h_objs) {
+		my $pk = $ho->_get_cdbi_pk_for_retrieve('_CDBIM_');
+		my $co = $c_objs{ join('_', map { $pk->{$_} } @pcs) };
+		$ho->class_dbi_object($co);
 	}
 }
 

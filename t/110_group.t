@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 41;
+use Test::More tests => 43;
 
 use Test::TempDatabase;
 use Carp;
@@ -155,3 +155,8 @@ $obj->class_dbi_object_gr('g2', $co);
 $obj->cdbi_load;
 is($obj->t2, 'x 2');
 is($obj->t1, 'x 1');
+
+$obj = HTC->new({ id1 => 1, id2 => 1 });
+$obj->cdbi_update({ t1 => 'foo', t2 => 'moo' });
+is($obj->t2, 'moo');
+is($obj->t1, 'foo');

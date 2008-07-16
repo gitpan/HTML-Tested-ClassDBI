@@ -1,7 +1,7 @@
 use strict;
 use warnings FATAL => 'all';
 
-use Test::More tests => 20;
+use Test::More tests => 24;
 use Test::TempDatabase;
 use HTML::Tested qw(HTV);
 use HTML::Tested::Value;
@@ -126,3 +126,14 @@ $obj4 = HT4->new({ b => "2", a => "3" });
 $obj4->cdbi_load;
 is($obj4->c, "8");
 is($obj4->d, "dd");
+
+my $objs = HT4->query_class_dbi('retrieve_all');
+is(@$objs, 2) or diag(Dumper($objs));
+
+my @shells = (HT4->new({ b => "2", a => "3", d => "s1" })
+	, HT4->new({ b => "2", a => "1", d => "s2" })
+	, HT4->new({ b => "3", a => "3", d => "s3" }));
+HT4->cdbi_set_many(\@shells, [ T1->retrieve_all ]);
+is($shells[0]->class_dbi_object->c, 8);
+is($shells[1]->class_dbi_object->c, 3);
+is($shells[2]->class_dbi_object, undef);
