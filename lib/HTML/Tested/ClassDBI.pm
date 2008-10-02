@@ -46,7 +46,7 @@ use Data::Dumper;
 my @_cdata = qw(_CDBI_Class _PrimaryFields _Field_Handlers _PrimaryKey);
 __PACKAGE__->mk_classdata($_) for @_cdata;
 
-our $VERSION = '0.19';
+our $VERSION = '0.20';
 
 sub class_dbi_object { shift()->class_dbi_object_gr('_CDBIM_', @_); }
 
@@ -104,7 +104,8 @@ sub bind_to_class_dbi { shift()->bind_to_class_dbi_gr('_CDBIM_', @_); }
 
 =head2 $class->bind_to_class_dbi_gr($group, $cdbi_class)
 
-Binds $class to $cdbi class in group $group.
+Binds $class to $cdbi class in group $group. Special group _CDBIM_ is used
+as the default group.
 
 =cut
 sub bind_to_class_dbi_gr {

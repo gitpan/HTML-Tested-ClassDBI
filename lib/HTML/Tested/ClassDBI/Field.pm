@@ -46,6 +46,8 @@ sub setup_type_info {
 	my ($self, $root, $w, $info) = @_;
 	($info ||= $root->pg_column_info($self->[0])) or return;
 	$w->options->{cdbi_column_info} = $info;
+	$w->options->{is_integer} = 1 if ($info->{type} eq 'integer'
+			|| $info->{type} eq 'smallint');
 	$w->push_constraint([ 'defined', '' ]) unless 
 		($w->options->{cdbi_readonly} || $info->{is_nullable});
 	$self->setup_datetime_from_info($w, $info);

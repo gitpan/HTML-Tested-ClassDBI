@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 81;
+use Test::More tests => 82;
 
 use Test::TempDatabase;
 use Carp;
@@ -64,6 +64,7 @@ ok($object->cdbi_load);
 is($object->text1, 'a');
 is($object->text2, 'b');
 is_deeply($object->class_dbi_object, $c1);
+is_deeply($object->class_dbi_object_gr('_CDBIM_'), $c1);
 
 my $o2 = HTC->new();
 is($o2->cdbi_load, undef);

@@ -1,6 +1,6 @@
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 11;
+use Test::More tests => 12;
 
 use Test::TempDatabase;
 use Class::DBI;
@@ -16,7 +16,7 @@ my $dbh = $tdb->handle;
 $dbh->do('SET client_min_messages TO error');
 
 $dbh->do("CREATE TABLE table1 (i1 serial primary key, "
-		. "t1 text not null, t2 text)");
+		. "t1 text not null, t2 text, n1 integer, n2 smallint)");
 is($dbh->{AutoCommit}, 1);
 
 package CDBI_Base;
@@ -40,6 +40,8 @@ package HTC;
 use base 'HTML::Tested::ClassDBI';
 __PACKAGE__->ht_add_widget(::HTV, 't1', cdbi_bind => '');
 __PACKAGE__->ht_add_widget(::HTV, 't2', cdbi_bind => '');
+__PACKAGE__->ht_add_widget(::HTV, 'n1', cdbi_bind => '');
+__PACKAGE__->ht_add_widget(::HTV, 'n2', cdbi_bind => '');
 __PACKAGE__->ht_add_widget(::HTV, 'ht_id', cdbi_bind => 'Primary');
 __PACKAGE__->bind_to_class_dbi('CDBI');
 
@@ -57,3 +59,7 @@ is_deeply([ $o->ht_validate ], [ [ 't1', 'defined', '' ] ]);
 $o = HTC->new({ t1 => 'c', t2 => 'd' });
 # Primary should not validate - it can be empty on create
 is_deeply([ $o->ht_validate ], []);
+
+$o->n1('a');
+$o->n2('b');
+is_deeply([ $o->ht_validate ], [ [ n1 => 'integer' ], [ n2 => 'integer' ] ]);
