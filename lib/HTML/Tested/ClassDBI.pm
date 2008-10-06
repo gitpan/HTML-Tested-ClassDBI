@@ -46,7 +46,7 @@ use Data::Dumper;
 my @_cdata = qw(_CDBI_Class _PrimaryFields _Field_Handlers _PrimaryKey);
 __PACKAGE__->mk_classdata($_) for @_cdata;
 
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 
 sub class_dbi_object { shift()->class_dbi_object_gr('_CDBIM_', @_); }
 
@@ -339,6 +339,14 @@ sub _load_db_info {
 	}
 }
 
+=head2 $class->cdbi_set_many($class_objs, $cdbi_objs)
+
+Initializes C<class_dbi_object> field of C<$class_objs> arrayref from the
+Class::DBI objects given in C<$cdbi_objs>.
+
+Useful to avoid overhead of retrieving Class::DBI objects one by one.
+
+=cut
 sub cdbi_set_many {
 	my ($class, $h_objs, $c_objs) = @_;
 	my @pcs = $class->CDBI_Class->primary_columns;
@@ -348,7 +356,8 @@ sub cdbi_set_many {
 	}
 	for my $ho (@$h_objs) {
 		my $pk = $ho->_get_cdbi_pk_for_retrieve('_CDBIM_');
-		my $co = $c_objs{ join('_', map { $pk->{$_} } @pcs) };
+		my $co = $c_objs{ join('_', grep { defined($_) }
+					map { $pk->{$_} } @pcs) };
 		$ho->class_dbi_object($co);
 	}
 }

@@ -1,7 +1,7 @@
 use strict;
 use warnings FATAL => 'all';
 
-use Test::More tests => 24;
+use Test::More tests => 25;
 use Test::TempDatabase;
 use HTML::Tested qw(HTV);
 use HTML::Tested::Value;
@@ -137,3 +137,8 @@ HT4->cdbi_set_many(\@shells, [ T1->retrieve_all ]);
 is($shells[0]->class_dbi_object->c, 8);
 is($shells[1]->class_dbi_object->c, 3);
 is($shells[2]->class_dbi_object, undef);
+
+# check undefined primary key
+@shells = (HT4->new);
+HT4->cdbi_set_many(\@shells, [ T1->retrieve_all ]);
+is($shells[0]->class_dbi_object, undef);
