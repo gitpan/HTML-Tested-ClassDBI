@@ -242,4 +242,4 @@ is($loid3, $loid2);
 ok($dbh->func($loid, "$td/e2", 'lo_export'));
 T->CDBI_Class->db_Main->commit;
 isnt(-s "$td/e2", "$td/e");
-
+chdir '/'
