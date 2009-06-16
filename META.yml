@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                HTML-Tested-ClassDBI
-version:             0.22
+version:             0.23
 abstract:            Enhances HTML::Tested to work with Class::DBI classes
 license:             ~
 author:              

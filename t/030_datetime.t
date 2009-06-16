@@ -30,7 +30,7 @@ sub db_Main { return $dbh; }
 package T1;
 use base 'CDBI_Base';
 
-__PACKAGE__->set_up_table('table1');
+__PACKAGE__->set_up_table('table1', { ColumnGroup => 'Essential' });
 
 package HTC;
 use base 'HTML::Tested::ClassDBI';
@@ -66,7 +66,7 @@ is($o->d1->month, 7);
 
 package T2;
 use base 'CDBI_Base';
-__PACKAGE__->set_up_table('table2');
+__PACKAGE__->set_up_table('table2', { ColumnGroup => 'Essential' });
 
 package H2;
 use base 'HTML::Tested::ClassDBI';

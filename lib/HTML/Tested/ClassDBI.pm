@@ -46,7 +46,7 @@ use Data::Dumper;
 my @_cdata = qw(_CDBI_Class _PrimaryFields _Field_Handlers _PrimaryKey);
 __PACKAGE__->mk_classdata($_) for @_cdata;
 
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 
 sub class_dbi_object { shift()->class_dbi_object_gr('_CDBIM_', @_); }
 
@@ -156,10 +156,11 @@ PFIELDS:
 }
 
 sub _fill_in_from_class_dbi {
-	my ($self, $gr) = @_;
+	my ($self, $gr, $is_update) = @_;
 	my $fhs = $self->_Field_Handlers->{$gr};
 	my $cdbi = $self->class_dbi_object_gr($gr);
 	while (my ($f, $h) = each %$fhs) {
+		next if ($is_update && defined $self->{$f});
 		$self->$f($h->get_column_value($cdbi));
 	}
 }
@@ -247,7 +248,7 @@ sub cdbi_create_gr {
 	eval { $res = $self->_CDBI_Class->{$gr}->create($cargs); };
 	confess "SQL error: $@\n" . Dumper($self) if $@;
 	$self->class_dbi_object_gr($gr, $res);
-	$self->_fill_in_from_class_dbi($gr);
+	$self->_fill_in_from_class_dbi($gr, 1);
 	return $res;
 }
 
@@ -283,7 +284,7 @@ sub cdbi_update_gr {
 	}, $args);
 	eval { $cdbi->update; };
 	confess "SQL error: $@\n" . Dumper($self) if $@;
-	$self->_fill_in_from_class_dbi($gr);
+	$self->_fill_in_from_class_dbi($gr, 1);
 	return $cdbi;
 }
 

@@ -31,7 +31,7 @@ sub db_Main { return $dbh; }
 package CDBI;
 use base 'CDBI_Base';
 
-__PACKAGE__->set_up_table('table1');
+__PACKAGE__->set_up_table('table1', { ColumnGroup => 'Essential' });
 
 package T;
 use base 'HTML::Tested::ClassDBI';

@@ -1,7 +1,7 @@
 use strict;
 use warnings FATAL => 'all';
 
-use Test::More tests => 19;
+use Test::More tests => 22;
 use Test::TempDatabase;
 use HTML::Tested qw(HTV);
 use HTML::Tested::Value;
@@ -20,6 +20,8 @@ $dbh->do('SET client_min_messages TO error');
 $dbh->do("CREATE TABLE table1 (id serial primary key
 		, t1 text not null, t2 text not null unique)");
 
+my @_cdbi_traces;
+
 # $SIG{__DIE__} = sub { diag(Carp::longmess(@_)); };
 package CDBI_Base;
 use base 'Class::DBI::Pg::More';
@@ -29,7 +31,13 @@ sub db_Main { return $dbh; }
 package T1;
 use base 'CDBI_Base';
 
-__PACKAGE__->set_up_table('table1');
+__PACKAGE__->set_up_table('table1', { ColumnGroup => 'Essential' });
+
+sub get {
+	my $lm = Carp::longmess();
+	push @_cdbi_traces, $lm unless $lm =~ /(cdbi_create)/;
+	return shift()->SUPER::get(@_);
+}
 
 package HTC;
 use base 'HTML::Tested::ClassDBI';
@@ -102,3 +110,11 @@ package main;
 
 my $htc4 = HTC4->new;
 is_deeply([ $htc4->ht_validate ], []);
+
+# get_column_value is too performance critical to call into Class::DBI
+# for updates
+unlike(join("\n", @_cdbi_traces), qr/get_column_value/);
+
+$h = HTC->new({ t2 => "du", t1 => 'ggg' });
+isnt($h->cdbi_load, undef);
+is($h->t1, 'kok');

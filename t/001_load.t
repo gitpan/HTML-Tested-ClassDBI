@@ -37,7 +37,7 @@ sub db_Main { return $dbh; }
 package CDBI;
 use base 'CDBI_Base';
 
-__PACKAGE__->set_up_table('table1');
+__PACKAGE__->set_up_table('table1', { ColumnGroup => 'Essential' });
 
 package main;
 
@@ -107,7 +107,7 @@ $dbh->do("CREATE TABLE table2 (
 		primary key (id1, id2))");
 package CDBI2;
 use base 'CDBI_Base';
-__PACKAGE__->set_up_table('table2');
+__PACKAGE__->set_up_table('table2', { ColumnGroup => 'Essential' });
 
 package main;
 

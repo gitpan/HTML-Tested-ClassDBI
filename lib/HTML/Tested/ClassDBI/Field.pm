@@ -22,7 +22,7 @@ sub bless_arg {
 sub get_column_value {
 	my ($self, $cdbi) = @_;
 	my $c = $self->column_name;
-	return $cdbi->$c;
+	return exists $cdbi->{$c} ? $cdbi->{$c} : $cdbi->$c;
 }
 
 sub column_name { return shift()->[0]; }
